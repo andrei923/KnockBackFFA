@@ -1,4 +1,4 @@
-# ➭ Dead By Deadlight Minigame for Minecraft.
+# ➭ FFA for Minecraft.
 
 # ➭ Dependencies:
 > ▪ Skript ➥ https://github.com/SkriptLang/Skript/releases
