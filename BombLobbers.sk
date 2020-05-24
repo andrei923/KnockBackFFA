@@ -1,0 +1,841 @@
+import:
+	java.lang.Math
+	java.util.Arrays 
+	java.util.ArrayList	
+	org.bukkit.Sound	
+	org.bukkit.Material		
+	org.bukkit.material.MaterialData	 	
+	org.bukkit.Location
+	org.bukkit.Color	
+	org.bukkit.Bukkit
+	org.bukkit.util.EulerAngle 
+	org.bukkit.util.Vector	
+	com.leaf.nbt.nbtapi.NBTItem
+	com.leaf.nbt.nbtapi.NBTEntity	
+	com.leaf.nbt.nbtapi.NBTContainer	
+	fr.mrmicky.fastparticle.FastParticle
+	fr.mrmicky.fastparticle.ParticleType	
+	org.bukkit.event.player.PlayerInteractEvent
+	org.bukkit.event.player.PlayerToggleFlightEvent
+	org.bukkit.event.player.PlayerArmorStandManipulateEvent	
+	
+options:
+
+	#do not touch this -_-
+	plugin-version: 1.0.0
+
+
+local effect create scoreboard for %player%:	
+	trigger:
+		if {-bmb::cache::TitleManager}.hasScoreboard(expr-1) is true:
+			{-bmb::cache::TitleManager}.removeScoreboard(expr-1)
+		{-bmb::cache::TitleManager}.giveScoreboard(expr-1)
+
+local effect delete scoreboard of %player%:	
+	trigger:
+		{-bmb::cache::TitleManager}.removeScoreboard(expr-1)	
+
+local effect set scoreboard title of %player% to %string%:	
+	trigger:
+		{-bmb::cache::TitleManager}.setScoreboardTitle(expr-1 and expr-2)
+
+local effect set scoreboard line %number% of %player% to %string%:	
+	trigger:
+		{-bmb::cache::TitleManager}.setScoreboardValue(expr-2, expr-1 and expr-3)
+
+function check_yaml(dir: text, value: text, set: text, type: text = "TEXT"):
+	yaml value {_value} from "leaf.bmb.%{_dir}%" is not set:
+		if {_type} is "text":
+			set yaml value {_value} from "leaf.bmb.%{_dir}%" to {_set}
+		if {_type} is "number":
+			set yaml value {_value} from "leaf.bmb.%{_dir}%" to {_set} parsed as number
+		if {_type} is "boolean":
+			set yaml value {_value} from "leaf.bmb.%{_dir}%" to {_set} parsed as boolean
+	if {_type} is "list":
+		yaml list {_value} from "leaf.bmb.%{_dir}%" is not set
+		loop {_set} split at "||":
+			add loop-value to yaml list {_value} from "leaf.bmb.%{_dir}%"
+
+expression %item% with [custom] nbt %string%:
+	return type: item
+	get:
+		if expr-1 = air:
+			return
+		set {_nbti} to new NBTItem(expr-1)
+		{_nbti}.mergeCompound(new NBTContainer(expr-2))
+		return {_nbti}.getItem()
+		
+expression %item% with [leaf] lore %texts%:
+	return type: item
+	get:
+		set {_r} to expr-1
+		loop expressions 2:
+			set {_lore} to loop-value-1
+			add 1 to {_line}			
+			set line {_line} of lore of {_r} to colored {_lore}		
+		return {_r}
+
+#From https://forums.skunity.com/resources/mirrorutils.706/ by EWS
+local expression replacer %texts% with %texts% in %text%:
+	return type: text
+	get:
+		set {_result} to expr-3
+		loop exprs-1:
+			add 1 to {_n}
+			replace all "%loop-value-1%" with ({_n}th element of exprs-2 ? "") in {_result}
+		return {_result}			
+
+local effect [leaf] set colision of %player% to %boolean%:
+	trigger:
+		expression-1.spigot().setCollidesWithEntities(expression-2)
+		try expression-1.setCollidable(expression-2)
+
+local effect [leaf] hide %player% from %player%:
+	trigger:
+		expr-2.hidePlayer(expr-1)
+
+local effect [leaf] show %player% to %player%:
+	trigger:
+		expr-2.showPlayer(expr-1)
+
+on load:
+	loop currently loaded yaml files:
+		loop-value contains "leaf.bmb.config" or "leaf.bmb.arenas" or "leaf.bmb.playerdata"
+		unload yaml loop-value-1
+	loop "config" and "arenas":
+		load yaml "plugins/BombLobbers/%loop-value-1%.yml" as "leaf.bmb.%loop-value-1%"	
+	check_yaml("config", "Settings.ChatFormat.Lobby", "&a{Wins} &8✦ &7{player} &8» &7{message}")	
+	check_yaml("config", "Settings.ChatFormat.Game", "{team} &8➭ &7{player} &8» &7{message}")								
+	check_yaml("config", "Settings.Items.Leave.Item", "magma cream")		
+	check_yaml("config", "Settings.Items.Leave.Name", "&cLeave the game")	
+	check_yaml("config", "Settings.Items.Leave.Slot", "8", "number")					
+	check_yaml("config", "Settings.Timers.In-Lobby", "30", "number")	
+	check_yaml("config", "Settings.TeamFormat.Color.Red", "&c")		
+	check_yaml("config", "Settings.TeamFormat.Name.Red", "&c&nRed&r")	
+	check_yaml("config", "Settings.TeamFormat.Color.Blue", "&b")	
+	check_yaml("config", "Settings.TeamFormat.Name.Blue", "&b&nBlue&r")		
+	check_yaml("config", "Settings.Misc.Tnt-Speed", "2", "number")			
+	check_yaml("config", "Settings.StatusFormat.WAITING", "&aWaiting...")	
+	check_yaml("config", "Settings.StatusFormat.STARTING", "&6Starting...")		
+	check_yaml("config", "Settings.StatusFormat.IN-GAME", "&cIn Game")	
+	check_yaml("config", "Settings.StatusFormat.RESTARTING", "&cRestarting...")										
+	check_yaml("config", "Menus.Arena-Browser.Menu", "&8» &7BombLobbers Arenas")	
+	check_yaml("config", "Menus.Arena-Browser.Name", "&8» &7Arena: &e{arena} &7⤵")	
+	check_yaml("config", "Menus.Arena-Browser.Lore", "&8︼︼︼︼︼︼︼︼︼︼︼︼||||&8➥ &bStatus: &e{status}||&8➥ &bPlaying: &e{playing}||||&8︻︻︻︻︻︻︻︻︻︻︻︻", "list")
+	check_yaml("config", "Menus.Arena-Browser.AutoJoin.Name", "&8▪ &eAutoJoin &8▪")	
+	check_yaml("config", "Menus.Arena-Browser.AutoJoin.Item", "beacon")		
+	check_yaml("config", "Menus.Stats.Menu", "&8︼︼ &7BombLobbers Stats &8︼︼")	
+	check_yaml("config", "Menus.Stats.Name", "&8➭ &e&nYour Stats&r")	
+	check_yaml("config", "Menus.Stats.Lore", "||&8♦ &7PlayedGames &a{PlayedGames}||&8♦ &7Wins &a{Wins}||&8♦ &7Kills &a{Kills}||&8♦ &7Deaths &a{Deaths}||&8♦ &7BlocksDestroyed &a{BlocksDestroyed}", "list")			
+	check_yaml("config", "Scoreboard.Waiting.Name", "&eBomb Lobbers")	
+	check_yaml("config", "Scoreboard.Waiting.Lines", "&7{now}||||&8♦ &fArena: &a{arena}||||&8♦ &fPlayers: &a{players}||||&8♦ &fStarting In: &a{timer}||||&b㋡ &e&nMC.SERVER.NET&r &b㋡", "list")
+	check_yaml("config", "Scoreboard.Game.Name", "&eBomb Lobbers") 	
+	check_yaml("config", "Scoreboard.Game.Lines", "&7{now}||||&7➥ &fYour Status ⤵||||&8▪ &fYour Kills: &a{kills}||&8▪ &fYour Team: &a{team}||||&7➥ &fGame Status ⤵||||&8╔ &c&nRed&r: {RedAlive}||&8╚ &b&nBlue&r: {BlueAlive}||||&eplay.my-cool-server.net", "list")		
+	check_yaml("config", "Messages.Join", "&7{player} &ehas joined to the game.")	
+	check_yaml("config", "Messages.Leave", "&7{player} &eleft the game.")
+	check_yaml("config", "Messages.Death", "&c➜ {victimColor}{victim} &7died")	
+	check_yaml("config", "Messages.Killed", "&c➜ {victimColor}{victim} &7was killed by {killerColor}{killer}")		
+	check_yaml("config", "Messages.Starting", "&eThe game starts in &a{seconds} &eseconds")	
+	check_yaml("config", "Messages.Summary", "&a︼︼︼︼︼︼︼︼︼︼︼︼︼︼︼︼︼︼︼︼︼︼︼︼︼||||&e✦ &6Bomb Lobbers &e✦||||&7Winners &8➭ {team}||||&a︻︻︻︻︻︻︻︻︻︻︻︻︻︻︻︻︻︻︻︻︻︻︻︻︻", "list")		
+	loop "config" and "arenas":		
+		save yaml "leaf.bmb.%loop-value-1%"	
+	loop all players:
+		bmb_stats(loop-value-1, "check")											
+
+command bmb [<text = help>] [<text>] [<text>] [<number>]:
+	aliases: BombLobbers
+	executable by: players
+	trigger:
+		if arg-1 is "help": 
+			send centered "&7☁☁☁☁☁☁☁☁☁☁☁☁☁☁☁☁☁☁☁☁" to player
+			send "&a/bmb list"
+			send "&a/bmb join &8(&7arena_name&8)"		
+			send "&a/bmb autojoin"
+			send "&a/bmb leave"
+			send centered "&7☁☁☁☁☁☁☁☁☁☁☁☁☁☁☁☁☁☁☁☁" to player
+			if player has permission "bmb.admin":	
+				send centered "&7☁☁☁☁☁☁☁☁☁☁☁☁☁☁☁☁☁☁☁☁" to player	
+				send "&e/bmb start"			
+				send centered "&7☁☁☁☁☁☁☁☁☁☁☁☁☁☁☁☁☁☁☁☁" to player								
+				send "&e/bmb setlobby"				
+				send "&e/bmb createArena &8(&7arena_name&8)"			
+				send "&e/bmb setArenaLobby &8(&7arena_name&8)"
+				send "&e/bmb setMinPlayers &8(&7arena_name&8) &8(&7number&8)"
+				send "&e/bmb setTeamSize &8(&7arena_name&8) &8(&7number&8)"		
+				send "&b/bmb setBlueSpawn &8(&7arena_name&8)"	
+				send "&b/bmb setBlueIslandPos &8(&7arena_name&8) &8(&71|2&8)"
+				send "&c/bmb setRedSpawn &8(&7arena_name&8)"	
+				send "&c/bmb setRedIslandPos &8(&7arena_name&8) &8(&71|2&8)"																																	
+				send "&e/bmb saveArena &8(&7arena_name&8)"							
+				send "&e/bmb deleteArena &8(&7arena_name&8)"
+				send centered "&7☁☁☁☁☁☁☁☁☁☁☁☁☁☁☁☁☁☁☁☁" to player
+				stop
+		if arg-1 is "join":		
+			bmb_join(player, arg-2)
+		if arg-1 is "list":		
+			if {-bmb::cache::player::%player%::state} is not set:	
+				open chest inventory with 6 rows named yaml value "Menus.Arena-Browser.Menu" from "leaf.bmb.config" to player
+				wait a tick	
+				set {_slot} to 10						
+				loop {-bmb::cache::arenas::*}:
+					set {_item} to green clay named replacer "{arena}" with loop-value-1 in yaml value "Menus.Arena-Browser.Name" from "leaf.bmb.config"
+					set {_lore::*} to yaml list "Menus.Arena-Browser.Lore" from "leaf.bmb.config"
+					replace all "{status}" with yaml value "Settings.StatusFormat.%{-bmb::cache::arena::%loop-value%::status}%" from "leaf.bmb.config" in {_lore::*}
+					replace all "{playing}" with "%size of {-bmb::cache::arena::%loop-value%::ninjas::*}%" in {_lore::*}																	
+					make a gui slot {_slot} of player with {_item} with leaf lore {_lore::*} to run function bmb_join(player, loop-value-1)
+					add 1 to {_slot}
+					if {_slot} is 17 or 26 or 35:
+						add 2 to {_slot}
+				make a gui slot 49 of player with yaml value "Menus.Arena-Browser.AutoJoin.Item" from "leaf.bmb.config" parsed as material named yaml value "Menus.Arena-Browser.AutoJoin.Name" from "leaf.bmb.config" to run:
+					make player execute command "bmb autojoin"					
+		if arg-1 is "stats":		
+			if {-bmb::cache::player::%player%::state} is not set:	
+				open chest inventory with 1 rows named yaml value "Menus.Stats.Menu" from "leaf.bmb.config" to player
+				wait a tick									
+				set {_lore::*} to yaml list "Menus.Stats.Lore" from "leaf.bmb.config"
+				loop "PlayedGames", "Wins", "Kills", "Deaths" and "BlocksDestroyed":
+					set {_int} to yaml value "Stats.%loop-value-1%" from "leaf.bmb.playerdata.%uuid of player%"
+					replace all "{%loop-value-1%}" with "%{_int}%" in {_lore::*}
+				make a gui slot 4 of player with paper named yaml value "Menus.Stats.Name" from "leaf.bmb.config" with leaf lore {_lore::*} to do nothing							
+		if arg-1 is "leave":	
+			bmb_leave(player)
+		if arg-1 is "autojoin":		
+			if {-bmb::cache::player::%player%::state} is not set:
+				loop {-bmb::cache::arenas::*}:
+					if {-bmb::cache::arena::%loop-value%::status} is "WAITING" or "STARTING":
+						bmb_join(player, loop-value)
+						stop
+		if arg-1 is "createarena":	
+			if player has permission "bmb.admin":		
+				if arg-2 is set:
+					if yaml value "%arg-2%.State" from "leaf.bmb.arenas" is not set:
+						set yaml value "%arg-2%.State" from "leaf.bmb.arenas" to "created"
+						send "&aArena &c%arg-2% &ahas been created!"
+						save yaml "leaf.bmb.arenas"
+					else:
+						send "&aThis arena already exists!"	
+				else:
+					send "&aSpecify Arena!"																					
+		if arg-1 is "setredspawn":
+			if player has permission "bmb.admin":		
+				if yaml value "%arg-2%.State" from "leaf.bmb.arenas" is "created" or "ready":
+					set yaml value "%arg-2%.Spawn.Red" from "leaf.bmb.arenas" to location of player
+					send "&aRed Spawn for Arena &3%arg-2% &ahas been set!"			
+					save yaml "leaf.bmb.arenas"			
+				else:
+					send "&aThis arena does not exists"							
+		if arg-1 is "setbluespawn":
+			if player has permission "bmb.admin":		
+				if yaml value "%arg-2%.State" from "leaf.bmb.arenas" is "created" or "ready":
+					set yaml value "%arg-2%.Spawn.Blue" from "leaf.bmb.arenas" to location of player
+					send "&aBlue Spawn for Arena &3%arg-2% &ahas been set!"		
+					save yaml "leaf.bmb.arenas"				
+				else:
+					send "&aThis arena does not exists"	
+		if arg-1 is "setBlueIslandPos":
+			if player has permission "bmb.admin":		
+				if yaml value "%arg-2%.State" from "leaf.bmb.arenas" is "created" or "ready":
+					if arg-3 is "1" or "2":
+						set yaml value "%arg-2%.Position.Blue.%arg-3%" from "leaf.bmb.arenas" to location of player
+						send "&aPosition %arg-3% &afor team &1Blue &ahas been set!"		
+						save yaml "leaf.bmb.arenas"		
+					else:
+						send "&aInvalid position!."		
+				else:
+					send "&aThis arena does not exists"		
+		if arg-1 is "setRedIslandPos":
+			if player has permission "bmb.admin":		
+				if yaml value "%arg-2%.State" from "leaf.bmb.arenas" is "created" or "ready":
+					if arg-3 is "1" or "2":				
+						set yaml value "%arg-2%.Position.Red.%arg-3%" from "leaf.bmb.arenas" to location of player
+						send "&aPosition %arg-3% &afor team &cRed &ahas been set!"		
+						save yaml "leaf.bmb.arenas"	
+					else:
+						send "&aInvalid position!."									
+				else:
+					send "&aThis arena does not exists"																													
+		if arg-1 is "setarenalobby":
+			if player has permission "bmb.admin":		
+				if yaml value "%arg-2%.State" from "leaf.bmb.arenas" is "created" or "ready":
+					set yaml value "%arg-2%.Spawn.Lobby" from "leaf.bmb.arenas" to location of player
+					send "&aLobby for Arena &3%arg-2% &ahas been set!"
+					save yaml "leaf.bmb.arenas"						
+				else:
+					send "&aThis arena does not exists"		
+		if arg-1 is "setminplayers":
+			if player has permission "bmb.admin":		
+				if yaml value "%arg-2%.State" from "leaf.bmb.arenas" is "created" or "ready":
+					set yaml value "%arg-2%.Settings.MinPlayers" from "leaf.bmb.arenas" to arg-3 parsed as number
+					send "&aMin Players for Arena &3%arg-2% &ahas been set!"
+					save yaml "leaf.bmb.arenas"						
+				else:
+					send "&aThis arena does not exists"	
+		if arg-1 is "setTeamSize":
+			if player has permission "bmb.admin":		
+				if yaml value "%arg-2%.State" from "leaf.bmb.arenas" is "created" or "ready":
+					set yaml value "%arg-2%.Settings.TeamSize" from "leaf.bmb.arenas" to arg-3 parsed as number
+					set yaml value "%arg-2%.Settings.MaxPlayers" from "leaf.bmb.arenas" to arg-3 parsed as number*2
+					send "&aTeam Size for Arena &3%arg-2% &ahas been set!"
+					save yaml "leaf.bmb.arenas"						
+				else:
+					send "&aThis arena does not exists"																			
+		if arg-1 is "setlobby":	
+			if player has permission "bmb.admin":
+				set yaml value "Locations.MainLobby" from "leaf.bmb.config" to location of player
+				save yaml "leaf.bmb.config"
+				send "&aLobby set."																								
+		if arg-1 is "start":
+			if player has permission "bmb.admin":
+				if {-bmb::cache::arena::%{-bmb::cache::player::%player%::arena}%::status} is "WAITING" or "STARTING":
+					bmb_start({-bmb::cache::player::%player%::arena})
+		if arg-1 is "reload":		
+			if player has permission "bmb.admin":
+				broadcast "&aReloading..."
+				wait a tick
+				make console execute command "sk reload %script%"
+		if arg-1 is "savearena":	
+			if player has permission "bmb.admin":		
+				if yaml value "%arg-2%.State" from "leaf.bmb.arenas" is "created":
+					if yaml value "%arg-2%.Spawn.Lobby" from "leaf.bmb.arenas" is set:								
+						if yaml value "%arg-2%.Settings.MaxPlayers" from "leaf.bmb.arenas" is set:	
+							if yaml value "%arg-2%.Settings.MinPlayers" from "leaf.bmb.arenas" is set:	
+								if yaml value "%arg-2%.Spawn.Red" from "leaf.bmb.arenas" is set:
+									if yaml value "%arg-2%.Spawn.Blue" from "leaf.bmb.arenas" is set:
+										if yaml value "%arg-2%.Position.Red.1" from "leaf.bmb.arenas" and yaml value "%arg-2%.Position.Red.2" from "leaf.bmb.arenas" is set:
+											if yaml value "%arg-2%.Position.Blue.1" from "leaf.bmb.arenas" and yaml value "%arg-2%.Position.Blue.2" from "leaf.bmb.arenas" is set:
+												set yaml value "%arg-2%.State" from "leaf.bmb.arenas" to "ready"
+												add arg-2 to {-bmb::cache::arenas::*}
+												send "&aArena &c%arg-2% &ahas been saved."
+												save yaml "leaf.bmb.arenas"
+												bmb_resetarena(arg-2)	
+											else:
+												send "&aBlue positions are not set!"													
+										else:
+											send "&aRed positions are not set!"																																																														
+									else:
+										send "&aBlue spawn is not set!"												
+								else:
+									send "&aRed spawn is not set!"											
+							else:
+								send "&aMin players not set!"												
+						else:
+							send "&aMax players not set!"																																				
+					else:
+						send "&aLobby is not set!"						
+				else:
+					send "&aThis arena does not exists"
+		if arg-1 is "debug":	
+			if player has permission "bmb.admin":
+				send "&fArena: &a%{-bmb::cache::player::%player%::arena}%"	
+				send "&fStatus: &a%{-bmb::cache::arena::%{-bmb::cache::player::%player%::arena}%::status}%"	
+				send "&fPlayers: &a%size of {-bmb::cache::arena::%{-bmb::cache::player::%player%::arena}%::ninjas::*}%"	
+				send "&fTeam &a%{-bmb::cache::player::%player%::team}%"	
+		if arg-1 is "deletearena":	
+			if player has permission "bmb.admin":		
+				if yaml value "%arg-2%.State" from "leaf.bmb.arenas" is set:
+					bmb_resetarena(arg-2)
+					delete yaml value arg-2 from "leaf.bmb.arenas"					
+					remove arg-2 from {-bmb::cache::arenas::*}
+					send "&aArena &c%arg-2% &ahas been deleted."
+					save yaml "leaf.bmb.arenas"
+				else:
+					send "&aThis arena does not exists"
+	
+on load:
+	delete {-bmb::cache::*}
+	send "&7&l--------------------------------------------" to console
+	send " " to console
+	send "&aLoading &ev.{@plugin-version}&a..." to console
+	broadcast "&aBombLobbers loaded!"
+	send " " to console
+	send "&7&l--------------------------------------------" to console
+	loop yaml nodes with keys "" from "leaf.bmb.arenas":
+		if yaml value "%loop-value-1%.State" from "leaf.bmb.arenas" is "ready":
+			add loop-value-1 to {-bmb::cache::arenas::*}
+	loop {-bmb::cache::arenas::*}:		
+		bmb_resetarena(loop-value-1)		
+	set {-bmb::cache::TitleManager} to Bukkit.getServer().getPluginManager().getPlugin("TitleManager")	
+	set {-bmb::cache::Items::Leave} to yaml value "Settings.Items.Leave.Item" from "leaf.bmb.config" parsed as material named yaml value "Settings.Items.Leave.Name" from "leaf.bmb.config"	
+	set {-bmb::cache::TnTSettings::Speed} to yaml value "Settings.Misc.Tnt-Speed" from "leaf.bmb.config"
+	if yaml value "Locations.MainLobby" from "leaf.bmb.config" is not set:
+		broadcast "&cBomb Lobbers Lobby is not set!."
+	set {_sb} to Bukkit.getScoreboardManager().getMainScoreboard()
+	{_sb}.getTeam("BMB.Blue") is not set:
+		set {_blue} to {_sb}.registerNewTeam("BMB.Blue")
+		{_blue}.setPrefix("&b")
+	{_sb}.getTeam("BMB.Red") is not set:
+		set {_red} to {_sb}.registerNewTeam("BMB.Red")
+		{_red}.setPrefix("&8c")		
+
+	set {-bmb::cache::Material.Red} to new MaterialData(Material.STAINED_CLAY)
+	{-bmb::cache::Material.Red}.setData(14)
+	set {-bmb::cache::Material.Blue} to new MaterialData(Material.STAINED_CLAY)
+	{-bmb::cache::Material.Blue}.setData(3)	
+
+function bmb_team_tag(p: player, type: boolean):
+	if {_sb}.getPlayerTeam({_p}) is "BMB.Blue" or "BMB.Red":
+		{_sb}.getPlayerTeam({_p}).removePlayer({_p})
+	if {_type} = false:
+		stop	
+	set {_team} to {_sb}.getTeam("BMB.%{-bmb::cache::player::%{_p}%::team}%")
+	{_team}.addPlayer({_p})
+
+on unload:
+	send "&7&l--------------------------------------------" to console
+	send " " to console
+	send "&aDisabling &ev.{@plugin-version}&a..." to console
+	send "&ev.{@plugin-version} &adisabled!" to console
+	send " " to console
+	send "&7&l--------------------------------------------" to console
+
+function bmb_stats(p: player, do: text, type: text = "Check", amount: number = 1):
+	if yaml "leaf.bmb.playerdata.%uuid of {_p}%" is not loaded:
+		load yaml "plugins/BombLobbers/playerdata/%uuid of {_p}%.yml" as "leaf.bmb.playerdata.%uuid of {_p}%"	
+	{_do} is "check":
+		loop "PlayedGames", "Wins", "Kills", "Deaths" and "BlocksDestroyed":
+			if yaml value "Stats.%loop-value-1%" from "leaf.bmb.playerdata.%uuid of {_p}%" is not set:
+				set yaml value "Stats.%loop-value-1%" from "leaf.bmb.playerdata.%uuid of {_p}%" to 0
+	{_do} is "add":
+		set yaml value "Stats.%{_type}%" from "leaf.bmb.playerdata.%uuid of {_p}%" to yaml value "Stats.%{_type}%" from "leaf.bmb.playerdata.%uuid of {_p}%" + {_amount}
+	save yaml "leaf.bmb.playerdata.%uuid of {_p}%"
+
+function bmb_leave(p: player):
+	if {-bmb::cache::player::%{_p}%::state} is set:
+		if {-bmb::cache::player::%{_p}%::state} is "IN-GAME":
+			set {_arena} to {-bmb::cache::player::%{_p}%::arena}			
+			bmb_remove_from_game({_p}, true)
+			send replacer "{player}" with {_p}'s display name in yaml value "Messages.Leave" from "leaf.bmb.config" to {-bmb::cache::arena::%{-bmb::cache::player::%{_p}%::arena}%::ninjas::*}	
+		delete {-bmb::cache::player::%{_p}%::*}	
+		bmb_clear_player({_p})
+		delete scoreboard of {_p}
+		teleport {_p} to yaml value "Locations.MainLobby" from "leaf.bmb.config"		
+		bmb_team_tag({_p}, false)
+		
+function bmb_join(p: player, arena: text):	
+	if {-bmb::cache::player::%{_p}%::state} is not set:
+		if yaml value "%{_arena}%.State" from "leaf.bmb.arenas" is "ready":
+			if {-bmb::cache::arena::%{_arena}%::status} is "WAITING" or "STARTING":
+				if size of {-bmb::cache::arena::%{_arena}%::ninjas::*} < yaml value "%{_arena}%.Settings.MaxPlayers" from "leaf.bmb.arenas":
+					bmb_clear_player({_p})
+					set {-bmb::cache::player::%{_p}%::state} to "IN-GAME"
+					set {-bmb::cache::player::%{_p}%::arena} to {_arena}
+					teleport {_p} to yaml value "%{_arena}%.Spawn.Lobby" from "leaf.bmb.arenas"
+					bmb_createBoard({_p}, "BMB-WAITING")					
+					set slot yaml value "Settings.Items.Leave.Slot" from "leaf.bmb.config" of {_p} to {-bmb::cache::Items::Leave}
+					add {_p} to {-bmb::cache::arena::%{_arena}%::ninjas::*}		
+					if size of {-bmb::cache::arena::%{_arena}%::ninjas::*} = yaml value "%{_arena}%.Settings.MinPlayers" from "leaf.bmb.arenas":
+						bmb_start_countdown({_arena})											
+					send replacer "{player}" and "{players-count}" with {_p}'s display name and "%size of {-bmb::cache::arena::%{_arena}%::ninjas::*}%" in yaml value "Messages.Join" from "leaf.bmb.config" to {-bmb::cache::arena::%{_arena}%::ninjas::*}
+					delete metadata value "BMB_DEAD" of {_p}
+					delete metadata value "BMB_KILLER" of {_p}
+				else:
+					send "&7This arena is full" to {_p}
+			else:
+				send "&7This game is running" to {_p}
+		else:
+			send "&7This arena not exists" to {_p}
+	else:
+		send "&7You are already playing." to {_p}
+
+function bmb_play_sound(p: player, soundLegacy: string, soundNew: string):
+	if minecraft version contains "1.8":
+		{_p}.playSound(location of {_p}, Sound..{_soundLegacy}, 1 and 1)	
+	else:	
+		{_p}.playSound(location of {_p}, Sound..{_soundNew}, 1 and 1)	
+
+function bmb_setTeam(p: player, team: text):
+	set {-bmb::cache::player::%{_p}%::team} to {_team}
+	add {_p} to {-bmb::cache::arena::%{-bmb::cache::player::%{_p}%::arena}%::team::%{_team}%::*}
+
+function bmb_selectTeams(arena: text):
+	loop {-bmb::cache::arena::%{_arena}%::ninjas::*}:
+		if {-bmb::cache::player::%loop-value-1%::team} is not set:
+			set {_teams::*} to "Red" and "Blue"
+			loop {_teams::*}:
+				if size of {-bmb::cache::arena::%{_arena}%::team::%loop-value-1%::*} = yaml value "%{_arena}%.Settings.TeamSize" from "leaf.bmb.arenas":
+					remove loop-value-1 from {_teams::*}
+			if size of {_teams::*} = 2:
+				if size of {-bmb::cache::arena::%{_arena}%::team::Red::*} >= size of {-bmb::cache::arena::%{_arena}%::team::Blue::*}:
+					bmb_setTeam(loop-value-1, "Blue")
+				else:
+					bmb_setTeam(loop-value-1, "Red")
+			else:
+				bmb_setTeam(loop-value-1, {_teams::1})
+
+function bmb_start(arena: text):
+	set {-bmb::cache::arena::%{_arena}%::status} to "IN-GAME"
+	bmb_selectTeams({_arena})
+	loop {-bmb::cache::arena::%{_arena}%::ninjas::*}:
+		bmb_clear_player(loop-value-1)		
+		set {-bmb::cache::player::%loop-value-1%::GameKills} to 0	
+		set {_color} to {-bmb::cache::player::%loop-value-1%::team} in lower case parsed as color
+		set loop-value-1's helmet to leather helmet with custom nbt "{Unbreakable:1,HideFlags:4}"
+		set loop-value-1's chestplate to leather chestplate with custom nbt "{Unbreakable:1,HideFlags:4}"
+		set loop-value-1's leggings to leather leggings with custom nbt "{Unbreakable:1,HideFlags:4}"
+		set loop-value-1's boots to leather boots with custom nbt "{Unbreakable:1,HideFlags:4}"		
+		dye loop-value-1's helmet {_color}
+		dye loop-value-1's chestplate {_color}
+		dye loop-value-1's leggings {_color}
+		dye loop-value-1's boots {_color}
+		set slot 8 of loop-value-1's inventory to loop-value-1's chestplate
+		set metadata value "BMB_OWNER" of loop-value-1 to loop-value-1
+		teleport loop-value-1 to yaml value "%{_arena}%.Spawn.%{-bmb::cache::player::%loop-value-1%::team}%" from "leaf.bmb.arenas"
+		bmb_createBoard(loop-value-1, "BMB-GAME")
+		bmb_stats(loop-value-1, "add", "PlayedGames")
+		bmb_team_tag(loop-value-1, true)		
+		set {_teamColor} to yaml value "Settings.TeamFormat.Color.%{-bmb::cache::player::%loop-value-1%::team}%" from "leaf.bmb.config"
+		loop-value-1.setPlayerListName("%{_teamColor}%%loop-value-1%")	
+		wait a tick	
+	loop 4 times:	
+		loop {-bmb::cache::arena::%{_arena}%::ninjas::*}:			
+			if loop-number = 1:
+				set {_title} to "&c&n3"
+				bmb_play_sound(loop-value-2, "NOTE_BASS", "BLOCK_NOTE_BLOCK_BASS")			
+			if loop-number = 2:
+				set {_title} to "&6&n2"
+				bmb_play_sound(loop-value-2, "NOTE_BASS", "BLOCK_NOTE_BLOCK_BASS")			
+			if loop-number = 3:
+				set {_title} to "&e&n1"	
+				bmb_play_sound(loop-value-2, "NOTE_BASS", "BLOCK_NOTE_BLOCK_BASS")
+			if loop-number = 4:
+				set {_title} to "&aFight!"
+				bmb_play_sound(loop-value-2, "LEVEL_UP", "ENTITY_PLAYER_LEVELUP")											
+			leaf send title {_title} with subtitle "" to loop-value-2 with 0 fadein and 0 fadeout for 20
+		wait a second
+	loop {-bmb::cache::arena::%{_arena}%::ninjas::*}:
+		set slot 0 of loop-value-1's inventory to 2 TNT	
+
+function bmb_check_block(arena: text, loc: location):
+	loop all blocks in radius 2 of {_loc}:
+		if "%loop-block%" contains "door" or "ladder" or "torch" or "grass" or "button":
+			set {bmb::arena::%{_arena}%::OMAE-MO-SHINDEIRU::%location of loop-block%} to location of loop-block
+			set {bmb::arena::%{_arena}%::NANI?!::%location of loop-block%} to type of loop-block
+
+on explode:
+	metadata value "BMB_ARENA" of event-entity is set
+	set {_p} to metadata value "BMB_OWNER" of event-entity
+	set {_arena} to metadata value "BMB_ARENA" of event-entity
+	if location of event-location is within yaml value "%{_arena}%.Position.%{-bmb::cache::player::%{_p}%::team}%.1" from "leaf.bmb.arenas" to yaml value "%{_arena}%.Position.%{-bmb::cache::player::%{_p}%::team}%.2" from "leaf.bmb.arenas":
+		cancel event
+		stop
+	set {_int} to 0
+	loop exploded blocks:
+		bmb_check_block({_arena}, location of loop-block)
+		set {bmb::arena::%{_arena}%::OMAE-MO-SHINDEIRU::%location of loop-block%} to location of loop-block
+		set {bmb::arena::%{_arena}%::NANI?!::%location of loop-block%} to type of loop-block
+		add 1 to {_int}
+	bmb_stats("%{_p}%" parsed as player, "add", "BlocksDestroyed", {_int})		
+	set exploded blocks to air								
+
+function bmb_shoot(p: player):
+	set {_loc} to {_p}'s eye location
+	shoot a primed TNT from {_loc} at speed {-bmb::cache::TnTSettings::Speed}
+	set {_entity} to shot primed TNT
+	set {_w} to world of {_p}
+	set metadata value "BMB_OWNER" of {_entity} to {_p}
+	set metadata value "BMB_ARENA" of {_entity} to {-bmb::cache::player::%{_p}%::arena}
+	set metadata value "BMB_TEAM" of {_entity} to {-bmb::cache::player::%{_p}%::team}
+	while {_entity} is set:
+		add 1 to {_int}
+		set {_loc} to location of {_entity}	
+	#	if {-bmb::cache::player::%{_p}%::team} is "Blue":		
+	#		FastParticle.spawnParticle({_w}, ParticleType.REDSTONE, {_loc}, 1 and Color.AQUA)
+	#	else:
+	#		FastParticle.spawnParticle({_w}, ParticleType.REDSTONE, {_loc}, 1 and Color.RED)	
+		FastParticle.spawnParticle({_w}, ParticleType.BLOCK_CRACK, {_loc}, 5 and {-bmb::cache::Material.%{-bmb::cache::player::%{_p}%::team}%})	
+		FastParticle.spawnParticle({_w}, ParticleType.CRIT_MAGIC, {_loc} and 1)	
+		wait a tick
+		if {_entity} is on ground:
+			stop
+		if {_int} = 200:
+			stop
+	{_entity}.setIsIncendiary(false)
+
+function bmb_rechargeTNT(p: player):
+	if metadata value "BMB_TNT_CHARGE" of {_p} is set:
+		loop 100 times:
+			if {-bmb::cache::player::%{_p}%::state} is "IN-GAME":
+				if metadata value "BMB_TNT_CHARGE" of {_p} is not set:
+					bmb_rechargeTNT({_p})
+					stop
+				wait a tick
+			else:
+				stop
+	set metadata value "BMB_TNT_CHARGE" of {_p} to true
+	{_p}.setExp(0)
+	set {_int} to 0
+	loop 100 times:
+		if {-bmb::cache::player::%{_p}%::state} is "IN-GAME":
+			{_p}.setExp({_int})
+			add 0.01 to {_int}
+			wait a tick
+		else:
+			stop
+	delete metadata value "BMB_TNT_CHARGE" of {_p}
+	add 1 of TNT to {_p}'s inventory
+
+on right click:
+	if {-bmb::cache::player::%player%::state} is set:
+		if event-item is {-bmb::cache::Items::Leave}:
+			bmb_leave(player)
+		if event-item is TNT:
+			cancel event
+			remove 1 of event-item from player
+			bmb_shoot(player)
+			bmb_rechargeTNT(player)			
+
+on join:
+	bmb_stats(player, "check")
+
+on quit:
+	if {-bmb::cache::player::%player%::state} is set:
+		bmb_leave(player)
+	save yaml "leaf.bmb.playerdata.%uuid of player%"
+	unload yaml "leaf.bmb.playerdata.%uuid of player%"
+					
+on break:
+	if {-bmb::cache::player::%player%::state} is "IN-GAME":
+		cancel event
+		
+on inventory click:
+	if {-bmb::cache::player::%player%::state} is "IN-GAME":
+		cancel event		
+	
+on place:
+	if {-bmb::cache::player::%player%::state} is "IN-GAME":
+		cancel event
+
+on PlayerArmorStandManipulateEvent:
+	if {-bmb::cache::player::%event.getPlayer()%::state} is set:	
+		cancel event
+
+on PlayerInteractEvent:
+	if {-bmb::cache::player::%event.getPlayer()%::state} is set:	
+		if "%event.getAction()%" is "PHYSICAL":
+			cancel event
+	
+on chat:
+	if {-bmb::cache::player::%player%::state} is set:
+		if {-bmb::cache::arena::%{-bmb::cache::player::%player%::arena}%::status} is "STARTING" or "WAITING":
+			set {_format} to replacer "{player}" and "{message}" with "%player%" and message in yaml value "Settings.ChatFormat.Lobby" from "leaf.bmb.config"
+		else:
+			set {_format} to replacer "{player}" and "{message}" and "{team}" with "%player%" and message and yaml value "Settings.TeamFormat.Name.%{-bmb::cache::player::%player%::team}%" from "leaf.bmb.config" in yaml value "Settings.ChatFormat.Game" from "leaf.bmb.config"
+		loop "PlayedGames", "Wins", "Kills", "Deaths" and "BlocksDestroyed":
+			set {_int} to yaml value "Stats.%loop-value-1%" from "leaf.bmb.playerdata.%uuid of player%"
+			replace all "{%loop-value-1%}" with "%{_int}%" in {_format}
+		set chat format to {_format}
+		set chat recipients to {-bmb::cache::arena::%{-bmb::cache::player::%player%::arena}%::ninjas::*}
+
+on drop:
+	if {-bmb::cache::player::%player%::state} is "IN-GAME":
+		cancel event
+		
+on command:
+	if {-bmb::cache::player::%player%::state} is set:
+		if full command is "leave":
+			bmb_leave(player)
+			cancel event
+
+on hunger bar change:	
+	if {-bmb::cache::player::%player%::state} is "IN-GAME":
+		set player's hunger to 20
+
+function bmb_show_blood(p: player):
+	if {-bmb::cache::player::%{_p}%::state} is set:
+		set {_w} to world of {_p}
+		set {_loc} to location of {_p}
+		set {_material} to new MaterialData(Material.."REDSTONE_BLOCK")
+		FastParticle.spawnParticle({_w}, ParticleType.BLOCK_CRACK, {_loc}, 3 and {_material})
+
+function bmb_win(arena: text, team: text):
+	loop yaml list "Messages.Summary" from "leaf.bmb.config":
+		set {_msg} to loop-value-1
+		replace all "{team}" with yaml value "Settings.TeamFormat.Name.%{_team}%" from "leaf.bmb.config" in {_msg}
+		send centered colored {_msg} to {-bmb::cache::arena::%{_arena}%::ninjas::*}
+	loop {-bmb::cache::arena::%{_arena}%::team::%{_team}%::*}:
+		bmb_stats(loop-value-1, "add", "Wins")
+	loop 10 times:
+		wait a second
+	bmb_resetarena({_arena})
+
+function bmb_remove_from_game(p: player, quit: boolean = false):
+	set {_arena} to {-bmb::cache::player::%{_p}%::arena}
+	if {_quit} is true:
+		remove {_p} from {-bmb::cache::arena::%{_arena}%::ninjas::*}
+	remove {_p} from {-bmb::cache::arena::%{_arena}%::team::%{-bmb::cache::player::%{_p}%::team}%::*}
+	if size of {-bmb::cache::arena::%{_arena}%::team::%{-bmb::cache::player::%{_p}%::team}%::*} = 0:
+		if {-bmb::cache::player::%{_p}%::team} is "Red":
+			bmb_win({_arena}, "Blue")
+		if {-bmb::cache::player::%{_p}%::team} is "Blue":
+			bmb_win({_arena}, "Red")
+		stop
+	if size of {-bmb::cache::arena::%{_arena}%::ninjas::*} = 0 or 1:
+		if {-bmb::cache::arena::%{_arena}%::status} != "WAITING" or "STARTING" or "RESTARTING":
+			bmb_resetarena({_arena})	
+
+function bmb_player_death(p: player):
+	if metadata value "BMB_DEAD" of {_p} is set:
+		stop
+	set metadata value "BMB_DEAD" of {_p} to true
+	bmb_clear_player({_p})	
+	bmb_show_blood({_p})
+	set {_killer} to "%metadata value ""BMB_KILLER"" of {_p}%" parsed as player
+	set {_p}'s gamemode to spectator
+	set {_random} to a random element out of {-bmb::cache::arena::%{-bmb::cache::player::%{_p}%::arena}%::ninjas::*}
+	teleport {_p} to {_random}
+
+#	set {_p}'s flight mode to true	
+#	leaf set colision of {_p} to false
+#	set slot yaml value "Settings.Items.Leave.Slot" from "leaf.bmb.config" of {_p} to {-bmb::cache::Items::Leave}
+#	loop {-bmb::cache::arena::%{-bmb::cache::player::%{_p}%::arena}%::ninjas::*}:
+#		leaf hide {_p} from loop-value-1
+	set {_victimColor} to yaml value "Settings.TeamFormat.Color.%{-bmb::cache::player::%{_p}%::team}%" from "leaf.bmb.config"	
+	bmb_stats({_p}, "add", "Deaths")
+	if {_killer} is set:
+		bmb_stats({_killer}, "add", "Kills")
+		add 1 to {-bmb::cache::player::%{_killer}%::GameKills}
+		set {_killerColor} to yaml value "Settings.TeamFormat.Color.%{-bmb::cache::player::%{_killer}%::team}%" from "leaf.bmb.config"
+		send replacer "{victim}" and "{killer}" and "{victimColor}" and "{killerColor}" with "%{_p}%" and "%{_killer}%" and "%{_victimColor}%" and "%{_killerColor}%" in yaml value "Messages.Killed" from "leaf.bmb.config" to {-bmb::cache::arena::%{-bmb::cache::player::%{_p}%::arena}%::ninjas::*}
+	else:
+		send replacer "{victim}" and "{victimColor}" with "%{_p}%" and "%{_victimColor}%" in yaml value "Messages.Death" from "leaf.bmb.config" to {-bmb::cache::arena::%{-bmb::cache::player::%{_p}%::arena}%::ninjas::*}
+	bmb_remove_from_game({_p})
+	
+
+on damage of player:
+	if {-bmb::cache::player::%victim%::state} is "IN-GAME":
+		if {-bmb::cache::arena::%{-bmb::cache::player::%victim%::arena}%::status} is "STARTING" or "WAITING":
+			cancel event
+			damage cause is void
+			teleport victim to yaml value "%{-bmb::cache::player::%victim%::arena}%.Spawn.Lobby" from "leaf.bmb.arenas"
+		if {-bmb::cache::arena::%{-bmb::cache::player::%victim%::arena}%::status} is "IN-GAME":
+			if {-bmb::cache::player::%attacker%::team} is {-bmb::cache::player::%victim%::team}:
+				cancel event
+				stop
+			if metadata value "BMB_TEAM" of attacker is {-bmb::cache::player::%victim%::team}:
+				cancel event
+				stop				
+			if damage cause is fall:
+				cancel event
+				stop	
+			bmb_show_blood(victim)
+			set metadata value "BMB_KILLER" of victim to metadata value "BMB_OWNER" of attacker	
+			if damage cause is void:
+				cancel event	
+				bmb_player_death(victim)
+				stop						
+			if damage >= health of victim:
+				cancel event	
+				bmb_player_death(victim) 							
+		if {-bmb::cache::arena::%{-bmb::cache::player::%victim%::arena}%::status} is "RESTARTING":				
+			cancel event	
+
+function bmb_start_countdown(arena: text):
+	set {-bmb::cache::arena::%{_arena}%::status} to "STARTING"
+	loop {-bmb::cache::arena::%{_arena}%::seconds} times:
+		if {-bmb::cache::arena::%{_arena}%::status} is "STARTING" or "WAITING":
+			size of {-bmb::cache::arena::%{_arena}%::ninjas::*} >= 2
+			remove 1 from {-bmb::cache::arena::%{_arena}%::seconds}	
+			if {-bmb::cache::arena::%{_arena}%::seconds} = 1 or 2 or 3 or 4 or 5 or 10:
+				send replacer "{seconds}" with "%{-bmb::cache::arena::%{_arena}%::seconds}%" in yaml value "Messages.Starting" from "leaf.bmb.config" to {-bmb::cache::arena::%{_arena}%::ninjas::*}	
+			if {-bmb::cache::arena::%{_arena}%::seconds} = 1:
+				size of {-bmb::cache::arena::%{_arena}%::ninjas::*} >= 2:
+					bmb_start({_arena})
+				else:
+					set {-bmb::cache::arena::%{_arena}%::status} to "WAITING"
+					set {-bmb::cache::arena::%{_arena}%::seconds} to yaml value "Settings.Timers.In-Lobby" from "leaf.bmb.config"
+			wait a second			
+		else:
+			stop
+		
+function bmb_resetarena(arena: text):
+	set {-bmb::cache::arena::%{_arena}%::status} to "RESTARTING"
+	loop {-bmb::cache::arena::%{_arena}%::ninjas::*}:
+		teleport loop-value-1 to yaml value "Locations.MainLobby" from "leaf.bmb.config"
+		delete scoreboard of loop-value-1		
+		delete {-bmb::cache::player::%loop-value-1%::*}			
+		bmb_clear_player(loop-value-1)	
+	#	leaf set colision of loop-value-1 to true	
+	#	loop {-bmb::cache::arena::%{_arena}%::ninjas::*}:
+	#		leaf show loop-value-1 to loop-value-2
+	#		leaf show loop-value-2 to loop-value-1
+		wait a tick
+	set {_center} to yaml value "%{_arena}%.Spawn.Red" from "leaf.bmb.arenas"
+	loop all entities in radius 500 of {_center}:
+		clear loop-entity		
+	loop {bmb::arena::%{_arena}%::OMAE-MO-SHINDEIRU::*}:
+		set block at location of {bmb::arena::%{_arena}%::OMAE-MO-SHINDEIRU::%loop-index%} to {bmb::arena::%{_arena}%::NANI?!::%loop-index%}
+		add 1 to {_int}
+		if {_int} = 20:
+			wait a tick
+			set {_int} to 0
+	delete {bmb::arena::%{_arena}%::*}			
+	delete {-bmb::cache::arena::%{_arena}%::*}		
+	set {-bmb::cache::arena::%{_arena}%::seconds} to yaml value "Settings.Timers.In-Lobby" from "leaf.bmb.config"
+	set {-bmb::cache::arena::%{_arena}%::status} to "WAITING"
+							
+function bmb_clear_player(p: player):						
+	heal {_p}
+	extinguish {_p}
+	set {_p}'s food to 20	
+	clear {_p}'s level
+	clear {_p}'s inventory
+	{_p}.setFlying(false)
+	{_p}.setAllowFlight(false)	
+	set {_p}'s gamemode to survival
+	loop ...{_p}.getActivePotionEffects():
+		{_p}.removePotionEffect(loop-value.getType())	
+	set velocity of {_p} to new vector 0, 0, 0	
+	delete metadata value "BMB_TNT_CHARGE" of {_p}
+
+function bmb_setSlot(p: player, slot: number, t: text):
+	add "&a", "&b", "&c", "&d", "&e", "&1", "&2", "&3", "&4", "&5", "&6", "&7", "&8", "&9" and "&f" to {_d::*}
+	if {_slot} is between 1 and 15: 
+		set scoreboard line {_slot} of {_p} to "%{_d::%{_slot}%}%%{_t}%"		
+	
+function bmb_createBoard(p: player, t: text):
+	set {_arena} to {-bmb::cache::player::%{_p}%::arena}
+	create scoreboard for {_p}
+	add "&a", "&b", "&c", "&d", "&e", "&1", "&2", "&3", "&4", "&5", "&6", "&7", "&8", "&9" and "&f" to {_d::*}
+	if {_t} is "BMB-WAITING":
+		set scoreboard title of {_p} to yaml value "Scoreboard.Waiting.Name" from "leaf.bmb.config"
+		while {-bmb::cache::player::%{_p}%::arena} = {_arena}:	
+			if {-bmb::cache::arena::%{-bmb::cache::player::%{_p}%::arena}%::status} = "STARTING" or "WAITING":
+				set {_slot} to 1
+				loop yaml list "Scoreboard.Waiting.Lines" from "leaf.bmb.config":
+					set {_value} to "%loop-value-1%"
+					replace all "{now}" with "%now%" in {_value}
+					replace all "{player}" with {_p}'s display name in {_value}
+					replace all "{timer}" with "%{-bmb::cache::arena::%{_arena}%::seconds}%" in {_value}
+					replace all "{players}" with "%size of {-bmb::cache::arena::%{_arena}%::ninjas::*}%" in {_value}
+					replace all "{arena}" with "%{-bmb::cache::player::%{_p}%::arena}%" in {_value}
+					bmb_setSlot({_p}, {_slot}, colored {_value})
+					add 1 to {_slot}
+			else:
+				stop
+			wait a second		
+	if {_t} is "BMB-GAME":
+		set scoreboard title of {_p} to yaml value "Scoreboard.Game.Name" from "leaf.bmb.config"
+		while {-bmb::cache::player::%{_p}%::arena} = {_arena}:	
+			if {-bmb::cache::arena::%{-bmb::cache::player::%{_p}%::arena}%::status} is set:	
+				set {_slot} to 1 
+				loop yaml list "Scoreboard.Game.Lines" from "leaf.bmb.config":
+					set {_value} to "%loop-value-1%"
+					replace all "{now}" with "%now%" in {_value}
+					replace all "{player}" with {_p}'s display name in {_value}
+					replace all "{RedAlive}" with "%size of {-bmb::cache::arena::%{-bmb::cache::player::%{_p}%::arena}%::team::Red::*}%" in {_value} 
+					replace all "{BlueAlive}" with "%size of {-bmb::cache::arena::%{-bmb::cache::player::%{_p}%::arena}%::team::Blue::*}%" in {_value}
+					replace all "{kills}" with "%{-bmb::cache::player::%{_p}%::GameKills}%" in {_value}
+					replace all "{team}" with yaml value "Settings.TeamFormat.Name.%{-bmb::cache::player::%{_p}%::team}%" from "leaf.bmb.config" in {_value}					
+					bmb_setSlot({_p}, {_slot}, colored {_value})
+					add 1 to {_slot}
+				if {-bmb::cache::arena::%{-bmb::cache::player::%{_p}%::arena}%::status} != "RESTARTING":	
+					if "%block at {_p}%" contains "water":
+						loop all players in radius 1 of {_p}:
+							loop-player is {_p}
+							damage loop-player by 1 heart
+			else:
+				stop							
+			wait a second	
+				
+
+#El Psy Kongroo
