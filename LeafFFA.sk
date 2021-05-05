@@ -11,7 +11,7 @@ import:
 options:
 
 	#do not touch this -_-
-	plugin-version: 1.2.0
+	plugin-version: 2.2.0
 
 function check_yaml(dir: text, value: text, set: text, type: text = "TEXT"):
 	yaml value {_value} from "leaf.ffa.%{_dir}%" is not set:
