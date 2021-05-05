@@ -13,7 +13,7 @@ options:
 	#do not touch this -_-
 	plugin-version: 2.2.0
 
-function check_yaml(dir: text, value: text, set: text, type: text = "TEXT"):
+function check_yaml(dir: text, value: text, set: text, type: text = "text"):
 	yaml value {_value} from "leaf.ffa.%{_dir}%" is not set:
 		if {_type} is "text":
 			set yaml value {_value} from "leaf.ffa.%{_dir}%" to {_set}
@@ -282,7 +282,7 @@ function ffa_clear_player(p: player):
 	{_p}.setAllowFlight(false)	
 	set {_p}'s gamemode to survival
 	loop ...{_p}.getActivePotionEffects():
-		{_p}.removePotionEffect(loop-value.getType())	
+		{_p}.removePotionEffect(loop-value-1.getType())	
 	set velocity of {_p} to new vector 0, 0, 0	
 
 function ffa_createBoard(p: player):
