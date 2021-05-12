@@ -157,18 +157,15 @@ on projectile hit:
 	metadata value "KFFA" of projectile is set
 	delete projectile						
 
-function kffa_stats(p: player, do: text, type: text = "check", amount: number = 1):
-	if yaml "leaf.kffa.playerdata.%uuid of {_p}%" is not loaded:
-		load yaml "plugins/KnockBackFFA/playerdata/%uuid of {_p}%.yml" as "leaf.kffa.playerdata.%uuid of {_p}%"	
+function kffa_stats(p: player, do: text, type: text = "check", amount: number = 1):	
 	{_do} is "check":
 		loop "Points", "Kills" and "Deaths":
-			if yaml value "Stats.%loop-value-1%" from "leaf.kffa.playerdata.%uuid of {_p}%" is not set:
-				set yaml value "Stats.%loop-value-1%" from "leaf.kffa.playerdata.%uuid of {_p}%" to 0
+			if yaml value "%uuid of {_p}%.%loop-value-1%" from "leaf.kffa.playerdata" is not set:
+				set yaml value "%uuid of {_p}%.%loop-value-1%" from "leaf.kffa.playerdata" to 0
 	{_do} is "add":
-		set yaml value "Stats.%{_type}%" from "leaf.kffa.playerdata.%uuid of {_p}%" to yaml value "Stats.%{_type}%" from "leaf.kffa.playerdata.%uuid of {_p}%" + {_amount}
+		set yaml value "%uuid of {_p}%.%{_type}%" from "leaf.kffa.playerdata" to yaml value "%uuid of {_p}%.%{_type}%" from "leaf.kffa.playerdata" + {_amount}
 	{_do} is "remove":
-		set yaml value "Stats.%{_type}%" from "leaf.kffa.playerdata.%uuid of {_p}%" to yaml value "Stats.%{_type}%" from "leaf.kffa.playerdata.%uuid of {_p}%" - {_amount}		
-	save yaml "leaf.kffa.playerdata.%uuid of {_p}%"
+		set yaml value "%uuid of {_p}%.%{_type}%" from "leaf.kffa.playerdata" to yaml value "%uuid of {_p}%.%{_type}%" from "leaf.kffa.playerdata" - {_amount}		
 
 function kffa_play_sound(p: player, soundLegacy: string, soundNew: string):
 	if {-kffa::cache::sounds::%{_soundLegacy}%} is not set:
@@ -197,7 +194,7 @@ function kffa_leave(p: player):
 	send replacer "{player}" with {_p}'s display name in yaml value "Messages.Leave" from "leaf.kffa.config" to {-kffa::cache::arena::players::*}
 	delete {-kffa::cache::player::%{_p}%::*}
 	teleport {_p} to yaml value "Locations.Leave" from "leaf.kffa.data"
-	unload yaml "leaf.kffa.playerdata.%uuid of {_p}%"
+	unload yaml "leaf.kffa.playerdata"
 
 function kffa_show_blood(p: player):
 	set {_w} to world of {_p}
@@ -256,7 +253,7 @@ function kffa_createBoard(p: player):
 			replace all "{playerCount}" with "%{_playerCount}%" in {_value}	
 			replace all "{arena}" with "%{-kffa::cache::player::%{_p}%::state}%" in {_value}				
 			loop "Points", "Kills" and "Deaths":
-				set {_int} to yaml value "Stats.%loop-value-2%" from "leaf.kffa.playerdata.%uuid of {_p}%"
+				set {_int} to yaml value "Stats.%loop-value-2%" from "leaf.kffa.playerdata"
 				replace all "{%loop-value-2%}" with "%{_int}%" in {_value}							
 			set scoreboard line {_slot} of {_p} to colored "%{-mb::cache::SB::%{_slot}%}%%{_value}%"
 			add 1 to {_slot}						
@@ -321,11 +318,13 @@ on load:
 			kffa_leave(loop-value-1)
 	wait a tick			
 	delete {-kffa::cache::*}
+	save yaml "leaf.kffa.playerdata"
 	loop currently loaded yaml files:
 		loop-value contains "leaf.kffa.config" or "leaf.kffa.playerdata"
 		unload yaml loop-value-1
 	loop "config" and "data":
 		load yaml "plugins/LeafFFA/%loop-value-1%.yml" as "leaf.kffa.%loop-value-1%"	
+	load yaml "plugins/KnockBackFFA/playerdata.yml" as "leaf.kffa.playerdata"	
 	kffa_check_yaml("config", "Settings.ChatFormat", "&a{kills} &8✦ &7{player} &8» &7{message}")		
 	kffa_check_yaml("config", "Settings.PointsPerKill", "5", "number")	
 #	kffa_check_yaml("config", "Settings.LosePointsOnDeath", "3", "number")								
@@ -358,6 +357,7 @@ on load:
 	send "&7&l--------------------------------------------" to console	
 
 on unload:
+	save yaml "leaf.kffa.playerdata"
 	send "&7&l--------------------------------------------" to console
 	send " " to console
 	send "&aDisabling &ev.{@plugin-version}&a..." to console
