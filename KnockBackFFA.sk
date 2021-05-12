@@ -1,6 +1,7 @@
 import:
 	org.bukkit.Bukkit	
 	org.bukkit.Sound
+	org.bukkit.Material	
 	org.bukkit.material.MaterialData		
 	fr.mrmicky.fastparticle.FastParticle
 	fr.mrmicky.fastparticle.ParticleType	
@@ -93,6 +94,9 @@ on place:
 		if event-block is sandstone or gold pressure plate:	
 			set {kffa::cache::Blocks::%location of event-block%} to location of event-block
 			set metadata value "BLOCK-OWNER" of event-block to player
+		if name of player's tool is "&eSuper Jump":
+			set {_item} to player's tool
+			kffa_item_cooldown(player, {_item}, 4, 15)			
 		if event-block is sandstone:
 			wait 10 seconds
 			set block at event-block to white clay
@@ -142,16 +146,19 @@ on pressure plate:
 		kffa_play_sound(player, "PISTON_RETRACT", "BLOCK_PISTON_RETRACT")
 		push the player upwards at speed 1.0
 		push the player forwards at speed 0.8
-		show mob spawner flames at event-block
+		set {_w} to world of {_p}
+		set {_loc} to location of {_p}
+		FastParticle.spawnParticle({_w}, ParticleType.FLAME, {_loc} and 1)
 		metadata value "BLOCK-OWNER" of event-block is not player:
 			set metadata value "LAST-HIT" of player to metadata value "BLOCK-OWNER" of event-block
 
 on shoot:
-	if {-kffa::cache::player::%player%::state} is set:
+	if {-kffa::cache::player::%shooter%::state} is set:
 		projectile is arrow
 		set metadata value "KFFA" of projectile to true
 		set metadata value "BOW-COOLDOWN" of shooter to true
-		kffa_item_cooldown(player, player's tool, 1, 20)	
+		set {_item} to shooter's tool
+		kffa_item_cooldown(shooter, {_item}, 1, 20)	
 
 on projectile hit:
 	metadata value "KFFA" of projectile is set
@@ -210,7 +217,7 @@ function kffa_player_death(p: player):
 		send replacer "{victim}" and "{killer}" with "%{_p}%" and "%{_killer}%" in yaml value "Messages.Killed" from "leaf.kffa.config" to {-kffa::cache::arena::players::*}
 	else:
 		send replacer "{victim}" with "%{_p}%" in yaml value "Messages.Death" from "leaf.kffa.config" to {-kffa::cache::arena::players::*}
-	teleport {_p} to yaml value "Maps.%{-kffa::cache::player::%{_p}%::state}%.Spawn" from "leaf.kffa.data"
+	teleport {_p} to yaml value "Maps.%{-kffa::cache::CurrentArena}%.Spawn" from "leaf.kffa.data"
 	kffa_play_sound({_p}, "ANVIL_BREAK", "BLOCK_ANVIL_BREAK")
 	kffa_play_sound({_killer}, "LEVEL_UP", "ENTITY_PLAYER_LEVELUP")
 	kffa_equip_kit({_p})
@@ -219,7 +226,14 @@ on damage of player:
 	if {-kffa::cache::player::%victim%::state} is set:
 		kffa_show_blood(victim)
 		if attacker is player:
-			set metadata value "kffa_KILLER" of victim to attacker
+			set metadata value "LAST-HIT" of victim to attacker
+		if damage cause is fall:
+			cancel event
+			stop
+		if damage cause is void:
+			cancel event
+			kffa_player_death(victim)
+			stop			
 		if damage >= health of victim:
 			cancel event	
 			kffa_player_death(victim)					
@@ -241,8 +255,9 @@ function kffa_clear_player(p: player):
 function kffa_createBoard(p: player):
 	create scoreboard for {_p}	
 	set scoreboard title of {_p} to yaml value "Scoreboard.Name" from "leaf.kffa.config"
+	set {_uuid} to uuid of {_p}
 	while {-kffa::cache::player::%{_p}%::state} is set:
-		set {_slot} to 0	
+		set {_slot} to 1	
 		set {_playerCount} to 0
 		loop all players:
 			if {-kffa::cache::player::%loop-value-1%::state} is set:
@@ -251,11 +266,11 @@ function kffa_createBoard(p: player):
 			set {_value} to "%loop-value-1%"			
 			replace all "{now}" with "%now%" in {_value}
 			replace all "{playerCount}" with "%{_playerCount}%" in {_value}	
-			replace all "{arena}" with "%{-kffa::cache::player::%{_p}%::state}%" in {_value}				
+			replace all "{map}" with "%{-kffa::cache::CurrentArena}%" in {_value}				
 			loop "Points", "Kills" and "Deaths":
-				set {_int} to yaml value "Stats.%loop-value-2%" from "leaf.kffa.playerdata"
-				replace all "{%loop-value-2%}" with "%{_int}%" in {_value}							
-			set scoreboard line {_slot} of {_p} to colored "%{-mb::cache::SB::%{_slot}%}%%{_value}%"
+				set {_int} to yaml value "%{_uuid}%.%loop-value-2%" from "leaf.kffa.playerdata"
+				replace all "{%loop-value-2%}" with "%{_int}%" in {_value}						
+			set scoreboard line {_slot} of {_p} to colored "%{-kffa::cache::SB::%{_slot}%}%%{_value}%"
 			add 1 to {_slot}						
 		wait a second
 
@@ -279,7 +294,7 @@ function kffa_map_task():
 			stop
 
 function kffa_equip_kit(p: player):	
-	kffa_clear({_p})
+	kffa_clear_player({_p})
 	set slot 0 of {_p} to unbreakable stick of sharpness 1 and knockback 2 named "&3Puncher"
 	set slot 1 of {_p} to unbreakable bow named "&7︻デ═一" 	
 	set slot 2 of {_p} to 64 sandstone
@@ -288,29 +303,35 @@ function kffa_equip_kit(p: player):
 	set slot 8 of {_p} to ender pearl	
 	set slot 9 of {_p} to arrow	
 	loop all items in {_p}'s inventory:
-		metadata value "%loop-value-1%-COOLDOWN" of {_p} is set
-		delete metadata value "%loop-value-1%-COOLDOWN" of {_p}
+		metadata value "%type of loop-value-1%-COOLDOWN" of {_p} is set
+		delete metadata value "%type of loop-value-1%-COOLDOWN" of {_p}
 
-function kffa_item_cooldown(p: player, item: item, slot: number, coundown: number):
-	set metadata value "%{_item}%-COOLDOWN" of {_p} to true
+function kffa_item_cooldown(p: player, item: item, slot: number, countdown: number):
+	set metadata value "%type of {_item}%-COOLDOWN" of {_p} to true
 	set {_mame} to name of {_item}
+	set {_newItem} to {_item} 
+	enchant {_newItem} with sharpness 1
 	loop {_countdown} times:
-		if metadata value "%{_item}%-COOLDOWN" of {_p} is not set:
+		set {_counter} to {_countdown} - loop-number
+		set {_newName} to join "&c%{_counter}%" with {_mame}
+		if metadata value "%type of {_item}%-COOLDOWN" of {_p} is not set:
 			stop
-		if {-kffa::cache::player::%player%::state} is not set:
+		if {-kffa::cache::player::%{_p}%::state} is not set:
 			stop
-		set slot {_slot} of {_p} to loop-number - 1 of {_item} of sharpness 1 named join "&c%loop-number - 1%" with {_mame}
+		set slot {_slot} of {_p} to {_newItem} named {_newName}
 		wait a second
-	set slot {_slot} of {_p} to {_item} named {_mame}	
-	delete metadata value "%{_item}%-COOLDOWN" of {_p}
+	set slot {_slot} of {_p} to {_item}
+	delete metadata value "%type of {_item}%-COOLDOWN" of {_p}
 	
+
 on right click:
 	if {-kffa::cache::player::%player%::state} is set:
+		if metadata value "%type of event-item%-COOLDOWN" of player is set:
+			cancel event
+			stop
 		if name of event-item is "&3Speed":
 			apply speed 3 to player for 5 seconds		
-			kffa_item_cooldown(player, player's tool, 7, 15)
-		if name of event-item is "&eSuper Jump":
-			kffa_item_cooldown(player, player's tool, 4, 15)		
+			kffa_item_cooldown(player, event-item, 7, 15)		
 
 on load:
 	loop all players:
@@ -323,13 +344,13 @@ on load:
 		loop-value contains "leaf.kffa.config" or "leaf.kffa.playerdata"
 		unload yaml loop-value-1
 	loop "config" and "data":
-		load yaml "plugins/LeafFFA/%loop-value-1%.yml" as "leaf.kffa.%loop-value-1%"	
+		load yaml "plugins/KnockBackFFA/%loop-value-1%.yml" as "leaf.kffa.%loop-value-1%"	
 	load yaml "plugins/KnockBackFFA/playerdata.yml" as "leaf.kffa.playerdata"	
 	kffa_check_yaml("config", "Settings.ChatFormat", "&a{kills} &8✦ &7{player} &8» &7{message}")		
 	kffa_check_yaml("config", "Settings.PointsPerKill", "5", "number")	
 #	kffa_check_yaml("config", "Settings.LosePointsOnDeath", "3", "number")								
 	kffa_check_yaml("config", "Scoreboard.Name", "&8︼︼ &eFFA &8︼︼") 	
-	kffa_check_yaml("config", "Scoreboard.Lines", "&7{now}||||&7➥ &fYour Status ⤵||||&8▪ &fKills: &a{Kills}||&8▪ &fPoints: &a{Points}||&8▪ &fDeaths: &a{Deaths}||||&7➥ &fServer Status ⤵||||&8╔ &e&nMode&r: {arena}||&8╚ &e&nOnline&r: {playerCount}||||&eplay.my-cool-server.net", "list")		
+	kffa_check_yaml("config", "Scoreboard.Lines", "&7{now}||||&7➥ &fYour Status ⤵||||&8▪ &fKills: &a{Kills}||&8▪ &fPoints: &a{Points}||&8▪ &fDeaths: &a{Deaths}||||&7➥ &fServer Status ⤵||||&8╔ &e&nMap&r: {map}||&8╚ &e&nOnline&r: {playerCount}||||&eplay.my-cool-server.net", "list")		
 	kffa_check_yaml("config", "Messages.MapChange", "&cMap changed to &e{map}.")	
 	kffa_check_yaml("config", "Messages.Join", "&7{player} &ejoined.")	
 	kffa_check_yaml("config", "Messages.Leave", "&7{player} &eleft.")
@@ -338,7 +359,7 @@ on load:
 	loop "config" and "data":		
 		save yaml "leaf.kffa.%loop-value-1%"		
 	loop {kffa::cache::Blocks::*}:
-		set block at loop-value-2 to air
+		set block at loop-value-1 to air
 		add 1 to {_int}
 		if {_int} = 20:
 			set {_int} to 0
@@ -355,6 +376,14 @@ on load:
 	broadcast "&aKnockBackFFA loaded!"
 	send " " to console
 	send "&7&l--------------------------------------------" to console	
+	#converting old maps
+	if {kffa.maps::*} is set:
+		loop {kffa.maps::*}:
+			set yaml value "Maps.%loop-value-1%.State" from "leaf.kffa.data" to "ready"
+			set yaml value "Maps.%loop-value-1%.Spawn" from "leaf.kffa.data" to {kffa.%loop-value-1%.spawn}
+		save "leaf.kffa.data"
+		delete {kffa.maps::*}
+	#
 
 on unload:
 	save yaml "leaf.kffa.playerdata"
