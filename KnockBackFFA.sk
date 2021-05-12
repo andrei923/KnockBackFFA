@@ -78,38 +78,6 @@ command kffa [<text = help>] [<text>]:
 				send "&aLeave location set."	
 				save yaml "leaf.kffa.data"										
 
-function kffa_stats(p: player, do: text, type: text = "check", amount: number = 1):
-	if yaml "leaf.kffa.playerdata.%uuid of {_p}%" is not loaded:
-		load yaml "plugins/KnockBackFFA/playerdata/%uuid of {_p}%.yml" as "leaf.kffa.playerdata.%uuid of {_p}%"	
-	{_do} is "check":
-		loop "Points", "Kills" and "Deaths":
-			if yaml value "Stats.%loop-value-1%" from "leaf.kffa.playerdata.%uuid of {_p}%" is not set:
-				set yaml value "Stats.%loop-value-1%" from "leaf.kffa.playerdata.%uuid of {_p}%" to 0
-	{_do} is "add":
-		set yaml value "Stats.%{_type}%" from "leaf.kffa.playerdata.%uuid of {_p}%" to yaml value "Stats.%{_type}%" from "leaf.kffa.playerdata.%uuid of {_p}%" + {_amount}
-	{_do} is "remove":
-		set yaml value "Stats.%{_type}%" from "leaf.kffa.playerdata.%uuid of {_p}%" to yaml value "Stats.%{_type}%" from "leaf.kffa.playerdata.%uuid of {_p}%" - {_amount}		
-	save yaml "leaf.kffa.playerdata.%uuid of {_p}%"
-
-function kffa_play_sound(p: player, soundLegacy: string, soundNew: string):
-	if {-kffa::cache::sounds::%{_soundLegacy}%} is not set:
-		if minecraft version contains "1.8":
-			set {-kffa::cache::sounds::%{_soundLegacy}%} to Sound..{_soundLegacy}
-		else:
-			set {-kffa::cache::sounds::%{_soundLegacy}%} to Sound..{_soundNew}
-	else:	
-		{_p}.playSound(location of {_p}, {-kffa::cache::sounds::%{_soundLegacy}%}, 1 and 1)	
-
-on pressure plate:
-	if {-kffa::cache::player::%player%::state} is set:
-		cancel event	
-		kffa_play_sound(player, "PISTON_RETRACT", "BLOCK_PISTON_RETRACT")
-		push the player upwards at speed 1.0
-		push the player forwards at speed 0.8
-		show mob spawner flames at event-block
-		metadata value "BLOCK-OWNER" of event-block is not player:
-			set metadata value "LAST-HIT" of player to metadata value "BLOCK-OWNER" of event-block
-
 on quit:
 	if {-kffa::cache::player::%player%::state} is set:
 		kffa_leave(player)
@@ -168,6 +136,49 @@ on hunger bar change:
 	if {-kffa::cache::player::%player%::state} is set:
 		set player's hunger to 20
 
+on pressure plate:
+	if {-kffa::cache::player::%player%::state} is set:
+		cancel event	
+		kffa_play_sound(player, "PISTON_RETRACT", "BLOCK_PISTON_RETRACT")
+		push the player upwards at speed 1.0
+		push the player forwards at speed 0.8
+		show mob spawner flames at event-block
+		metadata value "BLOCK-OWNER" of event-block is not player:
+			set metadata value "LAST-HIT" of player to metadata value "BLOCK-OWNER" of event-block
+
+on shoot:
+	if {-kffa::cache::player::%player%::state} is set:
+		projectile is arrow
+		set metadata value "KFFA" of projectile to true
+		set metadata value "BOW-COOLDOWN" of shooter to true
+		kffa_item_cooldown(player, player's tool, 1, 20)	
+
+on projectile hit:
+	metadata value "KFFA" of projectile is set
+	delete projectile						
+
+function kffa_stats(p: player, do: text, type: text = "check", amount: number = 1):
+	if yaml "leaf.kffa.playerdata.%uuid of {_p}%" is not loaded:
+		load yaml "plugins/KnockBackFFA/playerdata/%uuid of {_p}%.yml" as "leaf.kffa.playerdata.%uuid of {_p}%"	
+	{_do} is "check":
+		loop "Points", "Kills" and "Deaths":
+			if yaml value "Stats.%loop-value-1%" from "leaf.kffa.playerdata.%uuid of {_p}%" is not set:
+				set yaml value "Stats.%loop-value-1%" from "leaf.kffa.playerdata.%uuid of {_p}%" to 0
+	{_do} is "add":
+		set yaml value "Stats.%{_type}%" from "leaf.kffa.playerdata.%uuid of {_p}%" to yaml value "Stats.%{_type}%" from "leaf.kffa.playerdata.%uuid of {_p}%" + {_amount}
+	{_do} is "remove":
+		set yaml value "Stats.%{_type}%" from "leaf.kffa.playerdata.%uuid of {_p}%" to yaml value "Stats.%{_type}%" from "leaf.kffa.playerdata.%uuid of {_p}%" - {_amount}		
+	save yaml "leaf.kffa.playerdata.%uuid of {_p}%"
+
+function kffa_play_sound(p: player, soundLegacy: string, soundNew: string):
+	if {-kffa::cache::sounds::%{_soundLegacy}%} is not set:
+		if minecraft version contains "1.8":
+			set {-kffa::cache::sounds::%{_soundLegacy}%} to Sound..{_soundLegacy}
+		else:
+			set {-kffa::cache::sounds::%{_soundLegacy}%} to Sound..{_soundNew}
+	else:	
+		{_p}.playSound(location of {_p}, {-kffa::cache::sounds::%{_soundLegacy}%}, 1 and 1)	
+			
 function kffa_join(p: player):
 	if {-kffa::cache::CurrentArena} is not set:
 		stop
@@ -178,9 +189,11 @@ function kffa_join(p: player):
 	kffa_createBoard({_p})
 	add {_p} to {-kffa::cache::arena::players::*}
 	send replacer "{player}" with {_p}'s display name in yaml value "Messages.Join" from "leaf.kffa.config" to {-kffa::cache::arena::players::*}
+	kffa_equip_kit({_p})
 
 function kffa_leave(p: player):
 	kffa_clear_player({_p})
+	remove {_p} from {-kffa::cache::arena::players::*}
 	send replacer "{player}" with {_p}'s display name in yaml value "Messages.Leave" from "leaf.kffa.config" to {-kffa::cache::arena::players::*}
 	delete {-kffa::cache::player::%{_p}%::*}
 	teleport {_p} to yaml value "Locations.Leave" from "leaf.kffa.data"
@@ -203,6 +216,7 @@ function kffa_player_death(p: player):
 	teleport {_p} to yaml value "Maps.%{-kffa::cache::player::%{_p}%::state}%.Spawn" from "leaf.kffa.data"
 	kffa_play_sound({_p}, "ANVIL_BREAK", "BLOCK_ANVIL_BREAK")
 	kffa_play_sound({_killer}, "LEVEL_UP", "ENTITY_PLAYER_LEVELUP")
+	kffa_equip_kit({_p})
 
 on damage of player:
 	if {-kffa::cache::player::%victim%::state} is set:
@@ -225,7 +239,8 @@ function kffa_clear_player(p: player):
 	loop ...{_p}.getActivePotionEffects():
 		{_p}.removePotionEffect(loop-value-1.getType())	
 	set velocity of {_p} to new vector 0, 0, 0	
-
+	delete metadata value "LAST-HIT" of {_p}
+	
 function kffa_createBoard(p: player):
 	create scoreboard for {_p}	
 	set scoreboard title of {_p} to yaml value "Scoreboard.Name" from "leaf.kffa.config"
@@ -243,14 +258,68 @@ function kffa_createBoard(p: player):
 			loop "Points", "Kills" and "Deaths":
 				set {_int} to yaml value "Stats.%loop-value-2%" from "leaf.kffa.playerdata.%uuid of {_p}%"
 				replace all "{%loop-value-2%}" with "%{_int}%" in {_value}							
-			set scoreboard line {_slot} of {_p} to "%{-mb::cache::SB::%{_slot}%}%%{_value}%"
+			set scoreboard line {_slot} of {_p} to colored "%{-mb::cache::SB::%{_slot}%}%%{_value}%"
 			add 1 to {_slot}						
 		wait a second
 
+function kffa_map_task():
+	set {_backup::*} to {-kffa::cache::Maps::*}
+	if {-kffa::cache::CurrentArena} is set:
+		remove {-kffa::cache::CurrentArena} from {_backup::*}
+		set {-kffa::cache::CurrentArena} to a random element out of {_backup::*}
+	if {-kffa::cache::CurrentArena} is set:
+		set {-kffa::cache::CurrentArena} to a random element out of {-kffa::cache::Maps::*}	
+	loop all players:
+		if {-kffa::cache::player::%loop-value-1%::state} is set:	
+			teleport loop-value-1 to yaml value "Maps.%{-kffa::cache::CurrentArena}%.Spawn" from "leaf.kffa.data"	
+			kffa_equip_kit(loop-value-1)
+	send replacer "{map}" with {-kffa::cache::CurrentArena} in yaml value "Messages.MapChange" from "leaf.kffa.config" to {-kffa::cache::arena::players::*}			
+	set {_counter} to 15*60	
+	loop {_counter} times:
+		remove 1 from {_counter}
+		if {_counter} = 1:
+			kffa_map_task()
+			stop
+
+function kffa_equip_kit(p: player):	
+	kffa_clear({_p})
+	set slot 0 of {_p} to unbreakable stick of sharpness 1 and knockback 2 named "&3Puncher"
+	set slot 1 of {_p} to unbreakable bow named "&7︻デ═一" 	
+	set slot 2 of {_p} to 64 sandstone
+	set slot 4 of {_p} to gold pressure plate named "&eSuper Jump"
+	set slot 7 of {_p} to feather named "&3Speed"		
+	set slot 8 of {_p} to ender pearl	
+	set slot 9 of {_p} to arrow	
+	loop all items in {_p}'s inventory:
+		metadata value "%loop-value-1%-COOLDOWN" of {_p} is set
+		delete metadata value "%loop-value-1%-COOLDOWN" of {_p}
+
+function kffa_item_cooldown(p: player, item: item, slot: number, coundown: number):
+	set metadata value "%{_item}%-COOLDOWN" of {_p} to true
+	set {_mame} to name of {_item}
+	loop {_countdown} times:
+		if metadata value "%{_item}%-COOLDOWN" of {_p} is not set:
+			stop
+		if {-kffa::cache::player::%player%::state} is not set:
+			stop
+		set slot {_slot} of {_p} to loop-number - 1 of {_item} of sharpness 1 named join "&c%loop-number - 1%" with {_mame}
+		wait a second
+	set slot {_slot} of {_p} to {_item} named {_mame}	
+	delete metadata value "%{_item}%-COOLDOWN" of {_p}
+	
+on right click:
+	if {-kffa::cache::player::%player%::state} is set:
+		if name of event-item is "&3Speed":
+			apply speed 3 to player for 5 seconds		
+			kffa_item_cooldown(player, player's tool, 7, 15)
+		if name of event-item is "&eSuper Jump":
+			kffa_item_cooldown(player, player's tool, 4, 15)		
+
 on load:
 	loop all players:
-		if {-kffa::cache::player::%loop-player%::state} is set:
-			kffa_leave({_p})			
+		if {-kffa::cache::player::%loop-value-1%::state} is set:
+			kffa_leave(loop-value-1)
+	wait a tick			
 	delete {-kffa::cache::*}
 	loop currently loaded yaml files:
 		loop-value contains "leaf.kffa.config" or "leaf.kffa.playerdata"
@@ -262,6 +331,7 @@ on load:
 #	kffa_check_yaml("config", "Settings.LosePointsOnDeath", "3", "number")								
 	kffa_check_yaml("config", "Scoreboard.Name", "&8︼︼ &eFFA &8︼︼") 	
 	kffa_check_yaml("config", "Scoreboard.Lines", "&7{now}||||&7➥ &fYour Status ⤵||||&8▪ &fKills: &a{Kills}||&8▪ &fPoints: &a{Points}||&8▪ &fDeaths: &a{Deaths}||||&7➥ &fServer Status ⤵||||&8╔ &e&nMode&r: {arena}||&8╚ &e&nOnline&r: {playerCount}||||&eplay.my-cool-server.net", "list")		
+	kffa_check_yaml("config", "Messages.MapChange", "&cMap changed to &e{map}.")	
 	kffa_check_yaml("config", "Messages.Join", "&7{player} &ejoined.")	
 	kffa_check_yaml("config", "Messages.Leave", "&7{player} &eleft.")
 	kffa_check_yaml("config", "Messages.Death", "&c➜ {victim} &7died")	
