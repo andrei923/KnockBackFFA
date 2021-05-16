@@ -11,7 +11,7 @@ import:
 options:
 
 	#do not touch this -_-
-	plugin-version: 2.0.0
+	plugin-version: 2.0.5
 
 function kffa_check_yaml(dir: text, value: text, set: text, type: text = "text"):
 	yaml value {_value} from "leaf.kffa.%{_dir}%" is not set:
@@ -209,6 +209,9 @@ function kffa_show_blood(p: player):
 	FastParticle.spawnParticle({_w}, ParticleType.BLOCK_CRACK, {_loc}, 3 and {-kffa::cache::Blood})
 
 function kffa_player_death(p: player):
+	if metadata value "KFFA-DEATH" of {_p} is set:
+		stop
+	set metadata value "KFFA-DEATH" of {_p} to true
 	set {_killer} to "%metadata value ""LAST-HIT"" of {_p}%" parsed as player
 	kffa_stats({_p}, "add", "Deaths")
 #	kffa_stats({_p}, "remove", "Deaths", yaml value "Settings.LosePointsOnDeath" from "leaf.kffa.config")
@@ -305,6 +308,8 @@ function kffa_equip_kit(p: player):
 	loop all items in {_p}'s inventory:
 		metadata value "%type of loop-value-1%-COOLDOWN" of {_p} is set
 		delete metadata value "%type of loop-value-1%-COOLDOWN" of {_p}
+	wait a second
+	delete metadata value "KFFA-DEATH" of {_p}		
 
 function kffa_item_cooldown(p: player, item: item, slot: number, countdown: number):
 	set metadata value "%type of {_item}%-COOLDOWN" of {_p} to true
