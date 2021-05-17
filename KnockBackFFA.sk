@@ -11,7 +11,7 @@ import:
 options:
 
 	#do not touch this -_-
-	plugin-version: 2.0.5
+	plugin-version: 2.1.0
 
 function kffa_check_yaml(dir: text, value: text, set: text, type: text = "text"):
 	yaml value {_value} from "leaf.kffa.%{_dir}%" is not set:
@@ -61,7 +61,7 @@ command kffa [<text = help>] [<text>]:
 					stop
 				set yaml value "Maps.%arg-2%.State" from "leaf.kffa.data" to "created"
 				send "&aArena &b%arg-2%&a created, spawn setted to your currect location."	
-				send "&aUse &b/kffa setSpawn %arg-2%, If you want to modify spawn location."
+				send "&fUse &b/kffa setSpawn %arg-2%, &fIf you want to modify spawn location."
 				set yaml value "Maps.%arg-2%.Spawn" from "leaf.kffa.data" to location of player
 				set yaml value "Maps.%arg-2%.State" from "leaf.kffa.data" to "ready"
 				save yaml "leaf.kffa.data"	
@@ -79,8 +79,34 @@ command kffa [<text = help>] [<text>]:
 				send "&aLeave location set."	
 				save yaml "leaf.kffa.data"										
 
+on PlayerArmorStandManipulateEvent:
+	if {-kffa::cache::player::%event.getPlayer()%::state} is set:	
+		cancel event
+
+on PlayerInteractEvent:
+	if {-kffa::cache::player::%event.getPlayer()%::state} is set:	
+		if "%event.getAction()%" is "PHYSICAL":
+			cancel event
+			if "%event.getClickedBlock().getType()%" contains "plate":
+				set {_p} to event.getPlayer()
+				set {_block} to event.getClickedBlock()
+				set {_w} to world of {_p}
+				set {_loc} to location of {_p}				
+				kffa_play_sound({_p}, "PISTON_RETRACT", "BLOCK_PISTON_RETRACT")
+				push {_p} upwards at speed 1.0
+				push {_p} forwards at speed 0.8
+				FastParticle.spawnParticle({_w}, ParticleType.FLAME, {_loc} and 1)
+				metadata value "BLOCK-OWNER" of {_block} is not {_p}:
+					set metadata value "LAST-HIT" of {_p} to metadata value "BLOCK-OWNER" of {_block}			
+			
+on join:
+	if yaml value "Settings.Bungeecord" from "leaf.kffa.config" is true:
+		set join message to ""
+		kffa_join(player)
+
 on quit:
 	if {-kffa::cache::player::%player%::state} is set:
+		set quit message to ""
 		kffa_leave(player)
 					
 on break:
@@ -98,7 +124,7 @@ on place:
 			set {_item} to player's tool
 			kffa_item_cooldown(player, {_item}, 4, 15)			
 		if event-block is sandstone:
-			wait 10 seconds
+			wait 8 seconds
 			set block at event-block to white clay
 			wait a second
 			set block at event-block to orange clay
@@ -114,20 +140,11 @@ on place:
 		else:
 			cancel event
 
-on PlayerArmorStandManipulateEvent:
-	if {-kffa::cache::player::%event.getPlayer()%::state} is set:	
-		cancel event
-
-on PlayerInteractEvent:
-	if {-kffa::cache::player::%event.getPlayer()%::state} is set:	
-		if "%event.getAction()%" is "PHYSICAL":
-			cancel event
-	
 on chat:
 	if {-kffa::cache::player::%player%::state} is set:
 		set {_format} to replacer "{player}" and "{message}" with "%player%" and message in yaml value "Settings.ChatFormat" from "leaf.kffa.config"
 		loop "Points", "Kills" and "Deaths":
-			set {_int} to yaml value "Stats.%loop-value-1%" from "leaf.kffa.playerdata.%uuid of player%"
+			set {_int} to yaml value "%{_uuid}%.%loop-value-2%" from "leaf.kffa.playerdata"
 			replace all "{%loop-value-1%}" with "%{_int}%" in {_format}
 		set chat format to {_format}
 		set chat recipients to {-kffa::cache::arena::players::*}
@@ -139,18 +156,6 @@ on drop:
 on hunger bar change:	
 	if {-kffa::cache::player::%player%::state} is set:
 		set player's hunger to 20
-
-on pressure plate:
-	if {-kffa::cache::player::%player%::state} is set:
-		cancel event	
-		kffa_play_sound(player, "PISTON_RETRACT", "BLOCK_PISTON_RETRACT")
-		push the player upwards at speed 1.0
-		push the player forwards at speed 0.8
-		set {_w} to world of {_p}
-		set {_loc} to location of {_p}
-		FastParticle.spawnParticle({_w}, ParticleType.FLAME, {_loc} and 1)
-		metadata value "BLOCK-OWNER" of event-block is not player:
-			set metadata value "LAST-HIT" of player to metadata value "BLOCK-OWNER" of event-block
 
 on shoot:
 	if {-kffa::cache::player::%shooter%::state} is set:
@@ -221,7 +226,7 @@ function kffa_player_death(p: player):
 	else:
 		send replacer "{victim}" with "%{_p}%" in yaml value "Messages.Death" from "leaf.kffa.config" to {-kffa::cache::arena::players::*}
 	teleport {_p} to yaml value "Maps.%{-kffa::cache::CurrentArena}%.Spawn" from "leaf.kffa.data"
-	kffa_play_sound({_p}, "ANVIL_BREAK", "BLOCK_ANVIL_BREAK")
+#	kffa_play_sound({_p}, "ANVIL_BREAK", "BLOCK_ANVIL_BREAK")
 	kffa_play_sound({_killer}, "LEVEL_UP", "ENTITY_PLAYER_LEVELUP")
 	kffa_equip_kit({_p})
 
@@ -269,7 +274,8 @@ function kffa_createBoard(p: player):
 			set {_value} to "%loop-value-1%"			
 			replace all "{now}" with "%now%" in {_value}
 			replace all "{playerCount}" with "%{_playerCount}%" in {_value}	
-			replace all "{map}" with "%{-kffa::cache::CurrentArena}%" in {_value}				
+			replace all "{map}" with "%{-kffa::cache::CurrentArena}%" in {_value}	
+			replace all "{gametime}" with "%{-kffa::cache::timer::display}%" in {_value}							
 			loop "Points", "Kills" and "Deaths":
 				set {_int} to yaml value "%{_uuid}%.%loop-value-2%" from "leaf.kffa.playerdata"
 				replace all "{%loop-value-2%}" with "%{_int}%" in {_value}						
@@ -289,12 +295,22 @@ function kffa_map_task():
 			teleport loop-value-1 to yaml value "Maps.%{-kffa::cache::CurrentArena}%.Spawn" from "leaf.kffa.data"	
 			kffa_equip_kit(loop-value-1)
 	send replacer "{map}" with {-kffa::cache::CurrentArena} in yaml value "Messages.MapChange" from "leaf.kffa.config" to {-kffa::cache::arena::players::*}			
-	set {_counter} to 15*60	
-	loop {_counter} times:
-		remove 1 from {_counter}
-		if {_counter} = 1:
-			kffa_map_task()
-			stop
+	set {_currentMap} to {-kffa::cache::CurrentArena}
+	set {-kffa::cache::timer::minutes} to 12
+	set {-kffa::cache::timer::seconds} to 59
+	while {-kffa::cache::CurrentArena} is {_currentMap}:
+		if {-kffa::cache::timer::seconds} < 1:
+			set {-kffa::cache::timer::seconds} to 59
+			if {-kffa::cache::timer::minutes} < 1:
+				kffa_map_task()
+				stop
+			remove 1 from {-kffa::cache::timer::minutes}	
+		remove 1 from {-kffa::cache::timer::seconds}		
+		if {-kffa::cache::timer::seconds} <= 9:
+			set {-kffa::cache::timer::display} to "%{-kffa::cache::timer::minutes}%:0%{-kffa::cache::timer::seconds}%"
+		else:
+			set {-kffa::cache::timer::display} to "%{-kffa::cache::timer::minutes}%:%{-kffa::cache::timer::seconds}%"					
+		wait a second
 
 function kffa_equip_kit(p: player):	
 	kffa_clear_player({_p})
@@ -341,7 +357,7 @@ on right click:
 on load:
 	loop all players:
 		if {-kffa::cache::player::%loop-value-1%::state} is set:
-			kffa_leave(loop-value-1)
+			add loop-value-1 to {_backup::*}
 	wait a tick			
 	delete {-kffa::cache::*}
 	save yaml "leaf.kffa.playerdata"
@@ -351,11 +367,12 @@ on load:
 	loop "config" and "data":
 		load yaml "plugins/KnockBackFFA/%loop-value-1%.yml" as "leaf.kffa.%loop-value-1%"	
 	load yaml "plugins/KnockBackFFA/playerdata.yml" as "leaf.kffa.playerdata"	
+	kffa_check_yaml("config", "Settings.Bungeecord", "false", "boolean")	
 	kffa_check_yaml("config", "Settings.ChatFormat", "&a{kills} &8✦ &7{player} &8» &7{message}")		
 	kffa_check_yaml("config", "Settings.PointsPerKill", "5", "number")	
 #	kffa_check_yaml("config", "Settings.LosePointsOnDeath", "3", "number")								
 	kffa_check_yaml("config", "Scoreboard.Name", "&8︼︼ &eFFA &8︼︼") 	
-	kffa_check_yaml("config", "Scoreboard.Lines", "&7{now}||||&7➥ &fYour Status ⤵||||&8▪ &fKills: &a{Kills}||&8▪ &fPoints: &a{Points}||&8▪ &fDeaths: &a{Deaths}||||&7➥ &fServer Status ⤵||||&8╔ &e&nMap&r: {map}||&8╚ &e&nOnline&r: {playerCount}||||&eplay.my-cool-server.net", "list")		
+	kffa_check_yaml("config", "Scoreboard.Lines", "&7{now}||||&7➥ &fYour Status ⤵||||&8▪ &fKills: &a{Kills}||&8▪ &fPoints: &a{Points}||&8▪ &fDeaths: &a{Deaths}||||&7➥ &fServer Status ⤵||||&8╔ &e&nMap&r: {map}||&8╠ &e&nNext Map In&r: {gametime}||&8╚ &e&nOnline&r: {playerCount}||||&eplay.my-cool-server.net", "list")		
 	kffa_check_yaml("config", "Messages.MapChange", "&cMap changed to &e{map}.")	
 	kffa_check_yaml("config", "Messages.Join", "&7{player} &ejoined.")	
 	kffa_check_yaml("config", "Messages.Leave", "&7{player} &eleft.")
@@ -389,6 +406,11 @@ on load:
 		save "leaf.kffa.data"
 		delete {kffa.maps::*}
 	#
+	wait 2 seconds
+	loop {_backup::*}:
+		kffa_join(loop-value-1)
+		wait a tick
+	kffa_map_task()	
 
 on unload:
 	save yaml "leaf.kffa.playerdata"
