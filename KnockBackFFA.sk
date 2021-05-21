@@ -11,7 +11,7 @@ import:
 options:
 
 	#do not touch this -_-
-	plugin-version: 2.1.0
+	plugin-version: 2.2.0
 
 function kffa_check_yaml(dir: text, value: text, set: text, type: text = "text"):
 	yaml value {_value} from "leaf.kffa.%{_dir}%" is not set:
@@ -42,9 +42,11 @@ command kffa [<text = help>] [<text>]:
 		if arg-1 is "help": 
 			send centered "&7☁☁☁☁☁☁☁☁☁☁☁☁☁☁☁☁☁☁☁☁" to player
 			send "&a/kffa join"		
+			if player has permission "ffa.admin":
+				send "&a/kffa changeMap"		
 			send "&a/kffa leave"
 			send centered "&7☁☁☁☁☁☁☁☁☁☁☁☁☁☁☁☁☁☁☁☁" to player
-			if player has permission "ffa.admin":		
+			if player has permission "ffa.setup":		
 				send "&e/kffa createMap &8(&7map_name&8)"												
 				send "&e/kffa setSpawn &8(&7map_name&8)"					
 				send "&e/kffa setLeave"				
@@ -53,9 +55,20 @@ command kffa [<text = help>] [<text>]:
 		if arg-1 is "join":		
 			if {-kffa::cache::player::%player%::state} is set:
 				stop
-			kffa_join(player)		
+			kffa_join(player)	
+		if arg-1 is "changeMap":
+			if player has permission "ffa.admin":
+				open chest inventory with 6 rows named "&eSelect the Map" to player
+				wait a tick
+				set {_slot} to 0
+				loop yaml nodes with keys "Maps" from "leaf.kffa.data":
+					set {_map} to loop-value-1
+					if yaml value "Maps.%{_map}%.State" from "leaf.kffa.data" is "ready":
+						make a gui slot {_slot} of player with paper named "&a%{_map}%" to run:
+							kffa_map_task({_map})	
+					add 1 to {_slot}					
 		if arg-1 is "createMap":
-			if player has permission "ffa.admin":	
+			if player has permission "ffa.setup":	
 				if yaml value "Maps.%arg-2%.State" from "leaf.kffa.data" is set:
 					send "&cThis map is already created."	
 					stop
@@ -66,7 +79,7 @@ command kffa [<text = help>] [<text>]:
 				set yaml value "Maps.%arg-2%.State" from "leaf.kffa.data" to "ready"
 				save yaml "leaf.kffa.data"	
 		if arg-1 is "setSpawn":
-			if player has permission "ffa.admin":		
+			if player has permission "ffa.setup":		
 				if yaml value "Maps.%arg-2%.State" from "leaf.kffa.data" is set:
 					set yaml value "Maps.%arg-2%.Spawn" from "leaf.kffa.data" to location of player
 					send "&aSpawn location Set for arena &b%arg-2%."
@@ -74,7 +87,7 @@ command kffa [<text = help>] [<text>]:
 				else:
 					send "&eThere is no arena called like this."					
 		if arg-1 is "setLeave":
-			if player has permission "ffa.admin":	
+			if player has permission "ffa.setup":	
 				set yaml value "Locations.Leave" from "leaf.kffa.data" to location of player
 				send "&aLeave location set."	
 				save yaml "leaf.kffa.data"										
@@ -206,7 +219,6 @@ function kffa_leave(p: player):
 	send replacer "{player}" with {_p}'s display name in yaml value "Messages.Leave" from "leaf.kffa.config" to {-kffa::cache::arena::players::*}
 	delete {-kffa::cache::player::%{_p}%::*}
 	teleport {_p} to yaml value "Locations.Leave" from "leaf.kffa.data"
-	unload yaml "leaf.kffa.playerdata"
 
 function kffa_show_blood(p: player):
 	set {_w} to world of {_p}
@@ -283,12 +295,16 @@ function kffa_createBoard(p: player):
 			add 1 to {_slot}						
 		wait a second
 
-function kffa_map_task():
+function kffa_map_task(map: string = "Random"):
 	set {_backup::*} to {-kffa::cache::Maps::*}
 	if {-kffa::cache::CurrentArena} is set:
 		remove {-kffa::cache::CurrentArena} from {_backup::*}
 		set {-kffa::cache::CurrentArena} to a random element out of {_backup::*}
-	if {-kffa::cache::CurrentArena} is set:
+	#
+	if yaml value "Maps.%{_map}%.Spawn" from "leaf.kffa.data" is set:
+		set {-kffa::cache::CurrentArena} to {_map}
+	#
+	if {-kffa::cache::CurrentArena} is not set:
 		set {-kffa::cache::CurrentArena} to a random element out of {-kffa::cache::Maps::*}	
 	loop all players:
 		if {-kffa::cache::player::%loop-value-1%::state} is set:	
@@ -344,7 +360,6 @@ function kffa_item_cooldown(p: player, item: item, slot: number, countdown: numb
 	set slot {_slot} of {_p} to {_item}
 	delete metadata value "%type of {_item}%-COOLDOWN" of {_p}
 	
-
 on right click:
 	if {-kffa::cache::player::%player%::state} is set:
 		if metadata value "%type of event-item%-COOLDOWN" of player is set:
