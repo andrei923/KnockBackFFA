@@ -174,7 +174,6 @@ on shoot:
 	if {-kffa::cache::player::%shooter%::state} is set:
 		projectile is arrow
 		set metadata value "KFFA" of projectile to true
-		set metadata value "BOW-COOLDOWN" of shooter to true
 		set {_item} to shooter's tool
 		kffa_item_cooldown(shooter, {_item}, 1, 20)	
 
