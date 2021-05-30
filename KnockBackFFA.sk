@@ -11,7 +11,7 @@ import:
 options:
 
 	#do not touch this -_-
-	plugin-version: 2.2.0
+	plugin-version: 2.3.0
 
 function kffa_check_yaml(dir: text, value: text, set: text, type: text = "text"):
 	yaml value {_value} from "leaf.kffa.%{_dir}%" is not set:
@@ -109,7 +109,7 @@ on PlayerInteractEvent:
 				push {_p} upwards at speed 1.0
 				push {_p} forwards at speed 0.8
 				FastParticle.spawnParticle({_w}, ParticleType.FLAME, {_loc} and 1)
-				metadata value "BLOCK-OWNER" of {_block} is not {_p}:
+				metadata value "BLOCK-OWNER" of {_block} is not "%{_p}%":
 					set metadata value "LAST-HIT" of {_p} to metadata value "BLOCK-OWNER" of {_block}			
 			
 on join:
@@ -157,7 +157,7 @@ on chat:
 	if {-kffa::cache::player::%player%::state} is set:
 		set {_format} to replacer "{player}" and "{message}" with "%player%" and message in yaml value "Settings.ChatFormat" from "leaf.kffa.config"
 		loop "Points", "Kills" and "Deaths":
-			set {_int} to yaml value "%{_uuid}%.%loop-value-2%" from "leaf.kffa.playerdata"
+			set {_int} to yaml value "%uuid of player%.%loop-value-1%" from "leaf.kffa.playerdata"
 			replace all "{%loop-value-1%}" with "%{_int}%" in {_format}
 		set chat format to {_format}
 		set chat recipients to {-kffa::cache::arena::players::*}
@@ -237,6 +237,7 @@ function kffa_player_death(p: player):
 	else:
 		send replacer "{victim}" with "%{_p}%" in yaml value "Messages.Death" from "leaf.kffa.config" to {-kffa::cache::arena::players::*}
 	teleport {_p} to yaml value "Maps.%{-kffa::cache::CurrentArena}%.Spawn" from "leaf.kffa.data"
+	give 1 of ender pearl to {_killer}
 #	kffa_play_sound({_p}, "ANVIL_BREAK", "BLOCK_ANVIL_BREAK")
 	kffa_play_sound({_killer}, "LEVEL_UP", "ENTITY_PLAYER_LEVELUP")
 	kffa_equip_kit({_p})
@@ -336,6 +337,7 @@ function kffa_equip_kit(p: player):
 	set slot 7 of {_p} to feather named "&3Speed"		
 	set slot 8 of {_p} to ender pearl	
 	set slot 9 of {_p} to arrow	
+	set slot 10 of {_p} to 64 of arrow	
 	loop all items in {_p}'s inventory:
 		metadata value "%type of loop-value-1%-COOLDOWN" of {_p} is set
 		delete metadata value "%type of loop-value-1%-COOLDOWN" of {_p}
@@ -390,8 +392,8 @@ on load:
 	kffa_check_yaml("config", "Messages.MapChange", "&cMap changed to &e{map}.")	
 	kffa_check_yaml("config", "Messages.Join", "&7{player} &ejoined.")	
 	kffa_check_yaml("config", "Messages.Leave", "&7{player} &eleft.")
-	kffa_check_yaml("config", "Messages.Death", "&c➜ {victim} &7died")	
-	kffa_check_yaml("config", "Messages.Killed", "&c➜ {victim} &7was killed by {killer}")				
+	kffa_check_yaml("config", "Messages.Death", "&c➜ {victim} &7died.")	
+	kffa_check_yaml("config", "Messages.Killed", "&c➜ &a{victim} &7was killed by &a{killer}")				
 	loop "config" and "data":		
 		save yaml "leaf.kffa.%loop-value-1%"		
 	loop {kffa::cache::Blocks::*}:
