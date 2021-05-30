@@ -11,7 +11,7 @@ import:
 options:
 
 	#do not touch this -_-
-	plugin-version: 2.3.0
+	plugin-version: 2.3.5
 
 function kffa_check_yaml(dir: text, value: text, set: text, type: text = "text"):
 	yaml value {_value} from "leaf.kffa.%{_dir}%" is not set:
@@ -233,6 +233,7 @@ function kffa_player_death(p: player):
 #	kffa_stats({_p}, "remove", "Deaths", yaml value "Settings.LosePointsOnDeath" from "leaf.kffa.config")
 	if {_killer} is set:
 		kffa_stats({_killer}, "add", "Kills")
+		kffa_stats({_killer}, "add", "Points", yaml value "Settings.PointsPerKill" from "leaf.kffa.config")
 		send replacer "{victim}" and "{killer}" with "%{_p}%" and "%{_killer}%" in yaml value "Messages.Killed" from "leaf.kffa.config" to {-kffa::cache::arena::players::*}
 	else:
 		send replacer "{victim}" with "%{_p}%" in yaml value "Messages.Death" from "leaf.kffa.config" to {-kffa::cache::arena::players::*}
