@@ -175,7 +175,7 @@ on shoot:
 		projectile is arrow
 		set metadata value "KFFA" of projectile to true
 		set {_item} to shooter's tool
-		kffa_item_cooldown(shooter, {_item}, 1, 20)	
+		kffa_item_cooldown(shooter, {_item}, index of shooter's current hotbar slot, 20)	
 
 on projectile hit:
 	metadata value "KFFA" of projectile is set
@@ -196,7 +196,6 @@ on inventory click:
 					stop	
 			if size of {-kffa::cache::Items::Verify::*} is not size of all items in player's inventory:
 				send yaml value "Messages.InventoryInvalid" from "leaf.kffa.config"
-				broadcast "2"
 				stop			
 			kffa_inventory_manager(player, "save")					
 			send yaml value "Messages.InventorySave" from "leaf.kffa.config"
@@ -208,7 +207,7 @@ on right click:
 			stop
 		if name of event-item is value "Settings.Items.SpeedBoost.Name" from "leaf.kffa.config":
 			apply speed 3 to player for 5 seconds		
-			kffa_item_cooldown(player, event-item, 7, 15)	
+			kffa_item_cooldown(player, event-item, index of player's current hotbar slot, 15)	
 			
 on damage of player:
 	if {-kffa::cache::player::%victim%::state} is set:
