@@ -11,7 +11,7 @@ import:
 options:
 
 	#do not touch this -_-
-	plugin-version: 2.3.5
+	plugin-version: 2.4.0
 
 function kffa_check_yaml(dir: text, value: text, set: text, type: text = "text"):
 	yaml value {_value} from "leaf.kffa.%{_dir}%" is not set:
@@ -181,6 +181,51 @@ on projectile hit:
 	metadata value "KFFA" of projectile is set
 	delete projectile						
 
+on inventory click:
+	if {-kffa::cache::player::%player%::state} is set:
+		if metadata value "%type of event-item%-COOLDOWN" of player is set:
+			cancel event
+		name of event-item is yaml value "Settings.Items.SaveInv.Name" from "leaf.kffa.config":
+			cancel event
+			loop {-kffa::cache::Items::Verify::*}:
+				set {_verify.%type of loop-value-1%.Size} to item amount of loop-value-1
+				
+			loop all items in player's inventory:
+				if item amount of loop-value-1 is not {_verify.%type of loop-value-1%.Size}:
+					send yaml value "Messages.InventoryInvalid" from "leaf.kffa.config"
+					stop	
+			if size of {-kffa::cache::Items::Verify::*} is not size of all items in player's inventory:
+				send yaml value "Messages.InventoryInvalid" from "leaf.kffa.config"
+				broadcast "2"
+				stop			
+			kffa_inventory_manager(player, "save")					
+			send yaml value "Messages.InventorySave" from "leaf.kffa.config"
+
+on right click:
+	if {-kffa::cache::player::%player%::state} is set:
+		if metadata value "%type of event-item%-COOLDOWN" of player is set:
+			cancel event
+			stop
+		if name of event-item is value "Settings.Items.SpeedBoost.Name" from "leaf.kffa.config":
+			apply speed 3 to player for 5 seconds		
+			kffa_item_cooldown(player, event-item, 7, 15)	
+			
+on damage of player:
+	if {-kffa::cache::player::%victim%::state} is set:
+		kffa_show_blood(victim)
+		if attacker is player:
+			set metadata value "LAST-HIT" of victim to attacker
+		if damage cause is fall:
+			cancel event
+			stop
+		if damage cause is void:
+			cancel event
+			kffa_player_death(victim)
+			stop			
+		if damage >= health of victim:
+			cancel event	
+			kffa_player_death(victim)	
+
 function kffa_stats(p: player, do: text, type: text = "check", amount: number = 1):	
 	{_do} is "check":
 		loop "Points", "Kills" and "Deaths":
@@ -242,22 +287,6 @@ function kffa_player_death(p: player):
 #	kffa_play_sound({_p}, "ANVIL_BREAK", "BLOCK_ANVIL_BREAK")
 	kffa_play_sound({_killer}, "LEVEL_UP", "ENTITY_PLAYER_LEVELUP")
 	kffa_equip_kit({_p})
-
-on damage of player:
-	if {-kffa::cache::player::%victim%::state} is set:
-		kffa_show_blood(victim)
-		if attacker is player:
-			set metadata value "LAST-HIT" of victim to attacker
-		if damage cause is fall:
-			cancel event
-			stop
-		if damage cause is void:
-			cancel event
-			kffa_player_death(victim)
-			stop			
-		if damage >= health of victim:
-			cancel event	
-			kffa_player_death(victim)					
 							
 function kffa_clear_player(p: player):						
 	heal {_p}
@@ -331,14 +360,11 @@ function kffa_map_task(map: string = "Random"):
 
 function kffa_equip_kit(p: player):	
 	kffa_clear_player({_p})
-	set slot 0 of {_p} to unbreakable stick of sharpness 1 and knockback 2 named "&3Puncher"
-	set slot 1 of {_p} to unbreakable bow named "&7︻デ═一" 	
-	set slot 2 of {_p} to 64 sandstone
-	set slot 4 of {_p} to gold pressure plate named "&eSuper Jump"
-	set slot 7 of {_p} to feather named "&3Speed"		
-	set slot 8 of {_p} to ender pearl	
-	set slot 9 of {_p} to arrow	
-	set slot 10 of {_p} to 64 of arrow	
+	yaml value "%{_p}%.0" from "leaf.kffa.inventorydata" is set:
+		kffa_inventory_manager({_p}, "restore")
+	else:
+		loop yaml nodes with keys "Settings.Items" from "leaf.kffa.config":
+			set slot yaml value "Settings.Items.%loop-value-1%.Slot" from "leaf.kffa.config" of {_p} to {-kffa::cache::Items::%loop-value-1%}
 	loop all items in {_p}'s inventory:
 		metadata value "%type of loop-value-1%-COOLDOWN" of {_p} is set
 		delete metadata value "%type of loop-value-1%-COOLDOWN" of {_p}
@@ -360,16 +386,33 @@ function kffa_item_cooldown(p: player, item: item, slot: number, countdown: numb
 		set slot {_slot} of {_p} to {_newItem} named {_newName}
 		wait a second
 	set slot {_slot} of {_p} to {_item}
+	if type of {_item} is bow:
+		set slot yaml value "Settings.ArrowSlot" from "leaf.kffa.config" of {_p} to arrow
+		kffa_play_sound({_p}, "CHICKEN_EGG_POP", "ENTITY_CHICKEN_EGG")
 	delete metadata value "%type of {_item}%-COOLDOWN" of {_p}
-	
-on right click:
-	if {-kffa::cache::player::%player%::state} is set:
-		if metadata value "%type of event-item%-COOLDOWN" of player is set:
-			cancel event
-			stop
-		if name of event-item is "&3Speed":
-			apply speed 3 to player for 5 seconds		
-			kffa_item_cooldown(player, event-item, 7, 15)		
+
+function kffa_inventory_manager(p: player, type: text):
+	set {_int} to 0
+	if {_type} = "save":
+		delete yaml value "%{_p}%" from "leaf.kffa.inventorydata"
+		loop 36 times:
+			if slot {_int} of {_p}'s inventory is not air:
+				set yaml value "%{_p}%.%{_int}%" from "leaf.kffa.inventorydata" to slot {_int} of {_p}'s inventory
+			add 1 to {_int}
+		set yaml value "%{_p}%.Helmet" from "leaf.kffa.inventorydata" to {_p}'s helmet
+		set yaml value "%{_p}%.Chestplate" from "leaf.kffa.inventorydata" to {_p}'s chestplate
+		set yaml value "%{_p}%.Leggings" from "leaf.kffa.inventorydata" to {_p}'s legging
+		set yaml value "%{_p}%.Boots" from "leaf.kffa.inventorydata" to {_p}'s boots
+		save yaml "leaf.kffa.inventorydata"		
+	if {_type} = "restore":
+		loop 36 times:
+			yaml value "%{_p}%.%{_int}%" from "leaf.kffa.inventorydata" is set:
+				set slot {_int} of {_p}'s inventory to yaml value "%{_p}%.%{_int}%" from "leaf.kffa.inventorydata"
+			add 1 to {_int}
+		set {_p}'s helmet to yaml value "%{_p}%.Helmet" from "leaf.kffa.inventorydata"
+		set {_p}'s chestplate to yaml value "%{_p}%.Chestplate" from "leaf.kffa.inventorydata"
+		set {_p}'s legging to yaml value "%{_p}%.Leggings" from "leaf.kffa.inventorydata"
+		set {_p}'s boots to yaml value "%{_p}%.Boots" from "leaf.kffa.inventorydata" 	
 
 on load:
 	loop all players:
@@ -379,23 +422,50 @@ on load:
 	delete {-kffa::cache::*}
 	save yaml "leaf.kffa.playerdata"
 	loop currently loaded yaml files:
-		loop-value contains "leaf.kffa.config" or "leaf.kffa.playerdata"
+		loop-value contains "leaf.kffa.config" or "leaf.kffa.playerdata" or "leaf.kffa.inventorydata"
 		unload yaml loop-value-1
-	loop "config" and "data":
+	loop "config" and "data" and "inventorydata":
 		load yaml "plugins/KnockBackFFA/%loop-value-1%.yml" as "leaf.kffa.%loop-value-1%"	
 	load yaml "plugins/KnockBackFFA/playerdata.yml" as "leaf.kffa.playerdata"	
 	kffa_check_yaml("config", "Settings.Bungeecord", "false", "boolean")	
-	kffa_check_yaml("config", "Settings.ChatFormat", "&a{kills} &8✦ &7{player} &8» &7{message}")		
+	kffa_check_yaml("config", "Settings.ChatFormat", "&a{kills} &8✦ &7{player} &8» &7{message}")
+	kffa_check_yaml("config", "Settings.ArrowSlot", "9", "number")				
 	kffa_check_yaml("config", "Settings.PointsPerKill", "5", "number")	
+	if yaml value "Settings.Items" from "leaf.kffa.config" is not set:
+		kffa_check_yaml("config", "Settings.Items.Stick.Name","&3Puncher")	
+		kffa_check_yaml("config", "Settings.Items.Stick.Slot", "0", "number")		
+		kffa_check_yaml("config", "Settings.Items.Stick.Item", "stick")	
+		kffa_check_yaml("config", "Settings.Items.Stick.Enchantments", "unbreakable||sharpness||knockback 2", "list")			
+		kffa_check_yaml("config", "Settings.Items.Bow.Name", "&7︻デ═一")				
+		kffa_check_yaml("config", "Settings.Items.Bow.Slot", "1", "number")								
+		kffa_check_yaml("config", "Settings.Items.Bow.Item", "bow")		
+		kffa_check_yaml("config", "Settings.Items.SandStone.Slot", "2", "number")				
+		kffa_check_yaml("config", "Settings.Items.SandStone.Item", "64 sandstone")			
+		kffa_check_yaml("config", "Settings.Items.Plate.Slot", "4", "number")			
+		kffa_check_yaml("config", "Settings.Items.Plate.Item", "gold pressure plate")		
+		kffa_check_yaml("config", "Settings.Items.Plate.Name", "&eSuper Jump")	
+		kffa_check_yaml("config", "Settings.Items.SpeedBoost.Name", "&eSpeed")	
+		kffa_check_yaml("config", "Settings.Items.SpeedBoost.Slot", "7", "number")				
+		kffa_check_yaml("config", "Settings.Items.SpeedBoost.Item", "feather")		
+		kffa_check_yaml("config", "Settings.Items.Pearl.Slot", "8", "number")				
+		kffa_check_yaml("config", "Settings.Items.Pearl.Item", "ender pearl")			
+		kffa_check_yaml("config", "Settings.Items.Arrow.Slot", "9", "number")			
+		kffa_check_yaml("config", "Settings.Items.Arrow.Item", "arrow")		
+		kffa_check_yaml("config", "Settings.Items.SaveInv.Name", "&aSave Inventory.")
+		kffa_check_yaml("config", "Settings.Items.SaveInv.Slot", "35", "number")			
+		kffa_check_yaml("config", "Settings.Items.SaveInv.Item", "green clay")	
+								
 #	kffa_check_yaml("config", "Settings.LosePointsOnDeath", "3", "number")								
 	kffa_check_yaml("config", "Scoreboard.Name", "&8︼︼ &eFFA &8︼︼") 	
 	kffa_check_yaml("config", "Scoreboard.Lines", "&7{now}||||&7➥ &fYour Status ⤵||||&8▪ &fKills: &a{Kills}||&8▪ &fPoints: &a{Points}||&8▪ &fDeaths: &a{Deaths}||||&7➥ &fServer Status ⤵||||&8╔ &e&nMap&r: {map}||&8╠ &e&nNext Map In&r: {gametime}||&8╚ &e&nOnline&r: {playerCount}||||&eplay.my-cool-server.net", "list")		
+	kffa_check_yaml("config", "Messages.InventorySave", "&aInventory Saved.")		
+	kffa_check_yaml("config", "Messages.InventoryInvalid", "&cInvalid inventory, we cannot save it.")			
 	kffa_check_yaml("config", "Messages.MapChange", "&cMap changed to &e{map}.")	
 	kffa_check_yaml("config", "Messages.Join", "&7{player} &ejoined.")	
 	kffa_check_yaml("config", "Messages.Leave", "&7{player} &eleft.")
 	kffa_check_yaml("config", "Messages.Death", "&c➜ {victim} &7died.")	
 	kffa_check_yaml("config", "Messages.Killed", "&c➜ &a{victim} &7was killed by &a{killer}")				
-	loop "config" and "data":		
+	loop "config" and "data" and "inventorydata":	
 		save yaml "leaf.kffa.%loop-value-1%"		
 	loop {kffa::cache::Blocks::*}:
 		set block at loop-value-1 to air
@@ -408,6 +478,19 @@ on load:
 	loop yaml nodes with keys "Maps" from "leaf.kffa.data":
 		if yaml value "Maps.%loop-value-1%.State" from "leaf.kffa.data" is "ready":
 			add loop-value-1 to {-kffa::cache::Maps::*}
+	loop yaml nodes with keys "Settings.Items" from "leaf.kffa.config":		
+		set {-kffa::cache::Items::%loop-value-1%} to unbreakable yaml value "Settings.Items.%loop-value-1%.Item" from "leaf.kffa.config" parsed as material
+		if {-kffa::cache::Items::%loop-value-1%} is not set:
+			broadcast "&cInvalid Item: %loop-value-1%."
+		if yaml value "Settings.Items.%loop-value-1%.Item" from "leaf.kffa.config" is set:
+			set {-kffa::cache::Items::%loop-value-1%} to {-kffa::cache::Items::%loop-value-1%} named yaml value "Settings.Items.%loop-value-1%.Name" from "leaf.kffa.config"
+		if yaml list "Settings.Items.%loop-value-1%.Enchantments" from "leaf.kffa.config" is set:
+			loop yaml list "Settings.Items.%loop-value-1%.Enchantments" from "leaf.kffa.config":
+				set {_enchant} to "%loop-value-2%" parsed as enchantment type
+				enchant {-kffa::cache::Items::%loop-value-1%} with {_enchant}
+		add {-kffa::cache::Items::%loop-value-1%} to {-kffa::cache::Items::Verify::*}
+
+	#	set {-kffa::cache::Items::%loop-value-1%} to {-kffa::cache::Items::%loop-value-1%} with custom nbt "{Unbreakable:1,HideFlags:4}"
 	set {-kffa::cache::CurrentArena} to a random element out of {-kffa::cache::Maps::*}
 	send "&7&l--------------------------------------------" to console
 	send " " to console
