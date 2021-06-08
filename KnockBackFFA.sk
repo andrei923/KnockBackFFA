@@ -11,7 +11,7 @@ import:
 options:
 
 	#do not touch this -_-
-	plugin-version: 2.4.0
+	plugin-version: 2.4.1
 
 function kffa_check_yaml(dir: text, value: text, set: text, type: text = "text"):
 	yaml value {_value} from "leaf.kffa.%{_dir}%" is not set:
@@ -241,8 +241,7 @@ function kffa_play_sound(p: player, soundLegacy: string, soundNew: string):
 			set {-kffa::cache::sounds::%{_soundLegacy}%} to Sound..{_soundLegacy}
 		else:
 			set {-kffa::cache::sounds::%{_soundLegacy}%} to Sound..{_soundNew}
-	else:	
-		{_p}.playSound(location of {_p}, {-kffa::cache::sounds::%{_soundLegacy}%}, 1 and 1)	
+	{_p}.playSound(location of {_p}, {-kffa::cache::sounds::%{_soundLegacy}%}, 1 and 1)	
 			
 function kffa_join(p: player):
 	if {-kffa::cache::CurrentArena} is not set:
