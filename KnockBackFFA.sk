@@ -11,7 +11,7 @@ import:
 options:
 
 	#do not touch this -_-
-	plugin-version: 2.4.1
+	plugin-version: 2.4.5
 
 function kffa_check_yaml(dir: text, value: text, set: text, type: text = "text"):
 	yaml value {_value} from "leaf.kffa.%{_dir}%" is not set:
@@ -56,6 +56,10 @@ command kffa [<text = help>] [<text>]:
 			if {-kffa::cache::player::%player%::state} is set:
 				stop
 			kffa_join(player)	
+		if arg-1 is "leave":		
+			if {-kffa::cache::player::%player%::state} is not set:
+				stop
+			kffa_leave(player)				
 		if arg-1 is "changeMap":
 			if player has permission "ffa.admin":
 				open chest inventory with 6 rows named "&eSelect the Map" to player
