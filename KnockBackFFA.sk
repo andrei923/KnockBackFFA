@@ -11,7 +11,7 @@ import:
 options:
 
 	#do not touch this -_-
-	plugin-version: 2.4.5
+	plugin-version: 2.4.8
 
 function kffa_check_yaml(dir: text, value: text, set: text, type: text = "text"):
 	yaml value {_value} from "leaf.kffa.%{_dir}%" is not set:
@@ -59,6 +59,9 @@ command kffa [<text = help>] [<text>]:
 		if arg-1 is "leave":		
 			if {-kffa::cache::player::%player%::state} is not set:
 				stop
+			if yaml value "Settings.Bungeecord" from "leaf.kffa.config" is true:
+				if player does not have permission "ffa.admin":
+					stop
 			kffa_leave(player)				
 		if arg-1 is "changeMap":
 			if player has permission "ffa.admin":
