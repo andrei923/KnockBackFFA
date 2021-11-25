@@ -11,7 +11,7 @@ import:
 options:
 
 	#do not touch this -_-
-	plugin-version: 2.4.6
+	plugin-version: 2.5.0
 
 function kffa_check_yaml(dir: text, value: text, set: text, type: text = "text"):
 	yaml value {_value} from "leaf.kffa.%{_dir}%" is not set:
@@ -60,7 +60,10 @@ command kffa [<text = help>] [<text>]:
 		if arg-1 is "leave":		
 			if {-kffa::cache::player::%player%::state} is not set:
 				stop
-			kffa_leave(player)				
+			if yaml value "Settings.Bungeecord" from "leaf.kffa.config" is true:
+				if player does not have permission "ffa.admin":
+					stop
+			kffa_leave(player)			
 		if arg-1 is "changeMap":
 			if player has permission "ffa.admin":
 				open chest inventory with 6 rows named "&eSelect the Map" to player
@@ -78,9 +81,7 @@ command kffa [<text = help>] [<text>]:
 				if {_uuid} is set:
 					loop "Points", "Kills" and "Deaths":
 						set {_int} to yaml value "%{_uuid}%.%loop-value-1%" from "leaf.kffa.playerdata"		
-					send "&aDone."	
-				else:
-					send "&cInvalid player."									
+					send "&aDone."										
 		if arg-1 is "createMap":
 			if player has permission "ffa.setup":	
 				if yaml value "Maps.%arg-2%.State" from "leaf.kffa.data" is set:
