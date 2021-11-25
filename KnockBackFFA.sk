@@ -11,7 +11,7 @@ import:
 options:
 
 	#do not touch this -_-
-	plugin-version: 2.4.8
+	plugin-version: 2.4.6
 
 function kffa_check_yaml(dir: text, value: text, set: text, type: text = "text"):
 	yaml value {_value} from "leaf.kffa.%{_dir}%" is not set:
@@ -43,7 +43,8 @@ command kffa [<text = help>] [<text>]:
 			send centered "&7☁☁☁☁☁☁☁☁☁☁☁☁☁☁☁☁☁☁☁☁" to player
 			send "&a/kffa join"		
 			if player has permission "ffa.admin":
-				send "&a/kffa changeMap"		
+				send "&a/kffa changeMap"				
+				send "&a/kffa resetstats (player)"		
 			send "&a/kffa leave"
 			send centered "&7☁☁☁☁☁☁☁☁☁☁☁☁☁☁☁☁☁☁☁☁" to player
 			if player has permission "ffa.setup":		
@@ -59,9 +60,6 @@ command kffa [<text = help>] [<text>]:
 		if arg-1 is "leave":		
 			if {-kffa::cache::player::%player%::state} is not set:
 				stop
-			if yaml value "Settings.Bungeecord" from "leaf.kffa.config" is true:
-				if player does not have permission "ffa.admin":
-					stop
 			kffa_leave(player)				
 		if arg-1 is "changeMap":
 			if player has permission "ffa.admin":
@@ -73,7 +71,16 @@ command kffa [<text = help>] [<text>]:
 					if yaml value "Maps.%{_map}%.State" from "leaf.kffa.data" is "ready":
 						make a gui slot {_slot} of player with paper named "&a%{_map}%" to run:
 							kffa_map_task({_map})	
-					add 1 to {_slot}					
+					add 1 to {_slot}	
+		if arg-1 is "resetstats":
+			if player has permission "ffa.admin":	
+				set {_uuid} to uuid of arg-2 parsed as player
+				if {_uuid} is set:
+					loop "Points", "Kills" and "Deaths":
+						set {_int} to yaml value "%{_uuid}%.%loop-value-1%" from "leaf.kffa.playerdata"		
+					send "&aDone."	
+				else:
+					send "&cInvalid player."									
 		if arg-1 is "createMap":
 			if player has permission "ffa.setup":	
 				if yaml value "Maps.%arg-2%.State" from "leaf.kffa.data" is set:
