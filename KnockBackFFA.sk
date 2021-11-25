@@ -81,7 +81,9 @@ command kffa [<text = help>] [<text>]:
 				if {_uuid} is set:
 					loop "Points", "Kills" and "Deaths":
 						set {_int} to yaml value "%{_uuid}%.%loop-value-1%" from "leaf.kffa.playerdata"		
-					send "&aDone."										
+					send "&aDone."
+				else:
+					send "&cInvalid player."										
 		if arg-1 is "createMap":
 			if player has permission "ffa.setup":	
 				if yaml value "Maps.%arg-2%.State" from "leaf.kffa.data" is set:
