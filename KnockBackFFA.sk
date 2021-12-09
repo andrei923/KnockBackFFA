@@ -11,7 +11,7 @@ import:
 options:
 
 	#do not touch this -_-
-	plugin-version: 2.5.0
+	plugin-version: 2.5.2
 
 function kffa_check_yaml(dir: text, value: text, set: text, type: text = "text"):
 	yaml value {_value} from "leaf.kffa.%{_dir}%" is not set:
@@ -80,7 +80,8 @@ command kffa [<text = help>] [<text>]:
 				set {_uuid} to uuid of arg-2 parsed as player
 				if {_uuid} is set:
 					loop "Points", "Kills" and "Deaths":
-						set {_int} to yaml value "%{_uuid}%.%loop-value-1%" from "leaf.kffa.playerdata"		
+						delete yaml value "%{_uuid}%.%loop-value-1%" from "leaf.kffa.playerdata"
+					save yaml "leaf.kffa.playerdata"
 					send "&aDone."
 				else:
 					send "&cInvalid player."										
